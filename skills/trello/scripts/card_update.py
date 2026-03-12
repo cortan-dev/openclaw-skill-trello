@@ -13,14 +13,16 @@ def run() -> None:
     parser.add_argument("--list", dest="list_name", help="List name or Trello list ID")
     parser.add_argument("--name")
     parser.add_argument("--description", "--desc", dest="description")
+    parser.add_argument("--due", help="Due date (ISO 8601, e.g. 2026-12-25T12:00:00Z or 'null' to clear)")
+    parser.add_argument("--start", help="Start date (ISO 8601, e.g. 2026-12-25T12:00:00Z or 'null' to clear)")
     args = parser.parse_args()
 
-    if args.name is None and args.description is None:
-        raise TrelloError("Provide --name and/or --description (or legacy --desc).")
+    if args.name is None and args.description is None and args.due is None and args.start is None:
+        raise TrelloError("Provide at least one property to update (--name, --description, --due, --start).")
 
     client = TrelloClient()
     card = client.resolve_card(args.card, args.board, args.list_name)
-    print_json(client.update_card(card["id"], args.name, args.description))
+    print_json(client.update_card(card["id"], name=args.name, desc=args.description, due=args.due, start=args.start))
 
 
 if __name__ == "__main__":

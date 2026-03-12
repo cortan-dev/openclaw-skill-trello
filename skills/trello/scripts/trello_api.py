@@ -94,16 +94,19 @@ class TrelloClient:
         return self.request("POST", "/lists", params={"idBoard": board_id, "name": name, "pos": pos})
 
     def list_cards_on_board(self, board_id: str) -> List[Dict[str, Any]]:
-        return self.request("GET", f"/boards/{board_id}/cards", params={"fields": "name,desc,idList,closed,url,dateLastActivity", "filter": "all"})
+        return self.request("GET", f"/boards/{board_id}/cards", params={"fields": "name,desc,idList,closed,url,dateLastActivity,labels,due,start", "filter": "all"})
 
     def list_cards_on_list(self, list_id: str) -> List[Dict[str, Any]]:
-        return self.request("GET", f"/lists/{list_id}/cards", params={"fields": "name,desc,idList,closed,url,dateLastActivity", "filter": "all"})
+        return self.request("GET", f"/lists/{list_id}/cards", params={"fields": "name,desc,idList,closed,url,dateLastActivity,labels,due,start", "filter": "all"})
 
     def get_card(self, card_id: str) -> Dict[str, Any]:
-        return self.request("GET", f"/cards/{card_id}", params={"fields": "name,desc,closed,url,dateLastActivity,idBoard,idList,shortLink", "actions": "commentCard", "actions_limit": 20, "attachments": "true"})
+        return self.request("GET", f"/cards/{card_id}", params={"fields": "name,desc,closed,url,dateLastActivity,idBoard,idList,shortLink,labels,due,start", "actions": "commentCard", "actions_limit": 20, "attachments": "true"})
 
-    def create_card(self, list_id: str, name: str, desc: Optional[str] = None) -> Dict[str, Any]:
-        return self.request("POST", "/cards", params={"idList": list_id, "name": name, "desc": desc})
+    def create_card(self, list_id: str, name: str, desc: Optional[str] = None, due: Optional[str] = None, labels: Optional[List[str]] = None) -> Dict[str, Any]:
+        params = {"idList": list_id, "name": name, "desc": desc, "due": due}
+        if labels:
+            params["idLabels"] = ",".join(labels)
+        return self.request("POST", "/cards", params=params)
 
     def move_card(self, card_id: str, list_id: str) -> Dict[str, Any]:
         return self.request("PUT", f"/cards/{card_id}", params={"idList": list_id})
@@ -114,11 +117,87 @@ class TrelloClient:
     def attach_link(self, card_id: str, url: str, name: Optional[str] = None) -> Dict[str, Any]:
         return self.request("POST", f"/cards/{card_id}/attachments", params={"url": url, "name": name})
 
-    def update_card(self, card_id: str, name: Optional[str] = None, desc: Optional[str] = None) -> Dict[str, Any]:
-        return self.request("PUT", f"/cards/{card_id}", params={"name": name, "desc": desc})
+    def update_card(self, card_id: str, name: Optional[str] = None, desc: Optional[str] = None, due: Optional[str] = None, start: Optional[str] = None) -> Dict[str, Any]:
+        params = {"name": name, "desc": desc, "due": due, "start": start}
+        return self.request("PUT", f"/cards/{card_id}", params=params)
 
     def archive_card(self, card_id: str) -> Dict[str, Any]:
         return self.request("PUT", f"/cards/{card_id}", params={"closed": "true"})
+
+    def list_board_labels(self, board_id: str) -> List[Dict[str, Any]]:
+        return self.request("GET", f"/boards/{board_id}/labels")
+
+    def create_board_label(self, board_id: str, name: str, color: Optional[str] = None) -> Dict[str, Any]:
+        return self.request("POST", f"/boards/{board_id}/labels", params={"name": name, "color": color})
+
+    def add_label_to_card(self, card_id: str, label_id: str) -> Dict[str, Any]:
+        return self.request("POST", f"/cards/{card_id}/idLabels", params={"value": label_id})
+
+    def remove_label_from_card(self, card_id: str, label_id: str) -> Dict[str, Any]:
+        return self.request("DELETE", f"/cards/{card_id}/idLabels/{label_id}")
+
+    def resolve_label(self, board_id: str, label_ref: str) -> Dict[str, Any]:
+        if looks_like_id(label_ref):
+            labels = self.list_board_labels(board_id)
+            for lb in labels:
+                if lb["id"] == label_ref:
+                    return lb
+            raise NotFoundError(f"No label with ID '{label_ref}' found on this board.")
+        labels = self.list_board_labels(board_id)
+        matches = [lb for lb in labels if normalize(lb.get("name")) == normalize(label_ref)]
+        if not matches:
+            # Also try by color if name doesn't match and it looks like a color name
+            matches = [lb for lb in labels if normalize(lb.get("color")) == normalize(label_ref)]
+        if not matches:
+            raise NotFoundError(f"No label matched '{label_ref}' on this board.")
+        if len(matches) > 1:
+            raise AmbiguousMatchError("label", label_ref, matches)
+        return matches[0]
+
+    def unarchive_card(self, card_id: str) -> Dict[str, Any]:
+        return self.request("PUT", f"/cards/{card_id}", params={"closed": "false"})
+
+    def archive_list(self, list_id: str) -> Dict[str, Any]:
+        return self.request("PUT", f"/lists/{list_id}", params={"closed": "true"})
+
+    def unarchive_list(self, list_id: str) -> Dict[str, Any]:
+        return self.request("PUT", f"/lists/{list_id}", params={"closed": "false"})
+
+    def close_board(self, board_id: str) -> Dict[str, Any]:
+        return self.request("PUT", f"/boards/{board_id}", params={"closed": "true"})
+
+    def reopen_board(self, board_id: str) -> Dict[str, Any]:
+        return self.request("PUT", f"/boards/{board_id}", params={"closed": "false"})
+
+    def list_members_on_board(self, board_id: str) -> List[Dict[str, Any]]:
+        return self.request("GET", f"/boards/{board_id}/members", params={"fields": "fullName,username,id"})
+
+    def assign_member_to_card(self, card_id: str, member_id: str) -> Dict[str, Any]:
+        return self.request("POST", f"/cards/{card_id}/idMembers", params={"value": member_id})
+
+    def unassign_member_from_card(self, card_id: str, member_id: str) -> Dict[str, Any]:
+        return self.request("DELETE", f"/cards/{card_id}/idMembers/{member_id}")
+
+    def resolve_member(self, member_ref: str, board_id: str) -> Dict[str, Any]:
+        if looks_like_id(member_ref):
+            data = self.request("GET", f"/members/{member_ref}", params={"fields": "fullName,username,id"})
+            return {"id": data["id"], "fullName": data["fullName"], "username": data["username"], "raw": data}
+        
+        members = self.list_members_on_board(board_id)
+        matches = []
+        for m in members:
+            # Match by username (with or without @) or fullName
+            ref = normalize(member_ref).lstrip("@")
+            if normalize(m.get("username")) == ref or normalize(m.get("fullName")) == normalize(member_ref):
+                matches.append(m)
+        
+        if not matches:
+            raise NotFoundError(f"No member matched '{member_ref}' on the specified board.")
+        if len(matches) > 1:
+            raise AmbiguousMatchError("member", member_ref, matches)
+        
+        match = matches[0]
+        return {"id": match["id"], "fullName": match["fullName"], "username": match["username"], "raw": match}
 
     def resolve_board(self, board: str) -> Dict[str, Any]:
         if looks_like_id(board):
