@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
-import argparse
-from trello_api import TrelloClient, TrelloError, print_json, main_guard
+from __future__ import annotations
 
-def run():
+import argparse
+
+from trello_api import TrelloClient, TrelloError, main_guard, print_json
+
+
+def run() -> None:
     parser = argparse.ArgumentParser(description="Add or remove a label on a card")
     parser.add_argument("--card", required=True, help="Card name or ID")
     parser.add_argument("--board", help="Board name or ID (required if card name used)")
@@ -13,19 +17,18 @@ def run():
 
     client = TrelloClient()
     card = client.resolve_card(args.card, args.board, args.list_name)
-    
     board_id = card.get("board_id") or card["raw"].get("idBoard")
     if not board_id:
         raise TrelloError(f"Could not determine board for card '{args.card}' to resolve label '{args.label}'.")
 
     label = client.resolve_label(board_id, args.label)
-    
     if args.remove:
         client.remove_label_from_card(card["id"], label["id"])
         print_json({"status": "removed", "card": card["name"], "label": label.get("name") or label.get("color")})
     else:
         client.add_label_to_card(card["id"], label["id"])
         print_json({"status": "added", "card": card["name"], "label": label.get("name") or label.get("color")})
+
 
 if __name__ == "__main__":
     main_guard(run)
