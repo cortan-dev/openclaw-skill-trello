@@ -45,9 +45,10 @@ jobs:
       - name: Explain skipped review configuration
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
-          if [ -z "$OPENAI_API_KEY" ]; then
-            echo "OPENAI_API_KEY is not configured; skipping advisory PR review."
+          if [ -z "$OPENAI_API_KEY" ] && [ -z "$ANTHROPIC_API_KEY" ]; then
+            echo "No LLM credential is configured; set ANTHROPIC_API_KEY for native Anthropic support or OPENAI_API_KEY for an OpenAI-compatible endpoint. Skipping advisory PR review."
           fi
 
       - name: Run automated PR review
@@ -55,12 +56,14 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           OPENAI_BASE_URL: ${{ vars.OPENAI_BASE_URL }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ANTHROPIC_BASE_URL: ${{ vars.ANTHROPIC_BASE_URL }}
           ASSISTANT_REVIEW_MODEL: ${{ vars.ASSISTANT_REVIEW_MODEL }}
           SPARTAN_REVIEW_MODEL: ${{ vars.SPARTAN_REVIEW_MODEL }}
           PR_NUMBER: ${{ github.event.inputs.pr_number }}
         run: |
-          if [ -z "$OPENAI_API_KEY" ]; then
-            echo "OPENAI_API_KEY is not configured; skipping advisory PR review."
+          if [ -z "$OPENAI_API_KEY" ] && [ -z "$ANTHROPIC_API_KEY" ]; then
+            echo "No LLM credential is configured; set ANTHROPIC_API_KEY for native Anthropic support or OPENAI_API_KEY for an OpenAI-compatible endpoint. Skipping advisory PR review."
             exit 0
           fi
           python .github/scripts/pr_review.py
