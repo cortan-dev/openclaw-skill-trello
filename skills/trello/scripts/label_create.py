@@ -14,5 +14,9 @@ def run():
     label = client.create_board_label(board["id"], args.name, args.color)
     print_json(label)
 
+
+main = run
+
+
 if __name__ == "__main__":
     main_guard(run)
