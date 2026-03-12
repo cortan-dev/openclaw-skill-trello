@@ -19,12 +19,12 @@ import list_unarchive  # noqa: E402
 import board_close  # noqa: E402
 import board_reopen  # noqa: E402
 import list_create  # noqa: E402
-import members_list # noqa: E402
-import card_assign # noqa: E402
-import card_unassign # noqa: E402
-import labels_list # noqa: E402
-import label_create # noqa: E402
-import card_label # noqa: E402
+import members_list  # noqa: E402
+import card_assign  # noqa: E402
+import card_unassign  # noqa: E402
+import labels_list  # noqa: E402
+import label_create  # noqa: E402
+import card_label  # noqa: E402
 from trello_api import (  # noqa: E402
     AmbiguousMatchError,
     NotFoundError,
@@ -241,14 +241,12 @@ class CliCompatibilityTests(unittest.TestCase):
                 calls["unarchive_list"] = list_id
                 return {"id": list_id, "closed": False}
 
-        # Test archive
         with patch.object(list_archive, "TrelloClient", return_value=FakeClient()), patch.object(
             sys, "argv", ["list_archive.py", "--list", "L", "--board", "B"]
         ), redirect_stdout(io.StringIO()):
             list_archive.run()
         self.assertEqual(calls["archive_list"], "list123")
 
-        # Test unarchive
         with patch.object(list_unarchive, "TrelloClient", return_value=FakeClient()), patch.object(
             sys, "argv", ["list_unarchive.py", "--list", "L", "--board", "B"]
         ), redirect_stdout(io.StringIO()):
@@ -271,14 +269,12 @@ class CliCompatibilityTests(unittest.TestCase):
                 calls["reopen_board"] = board_id
                 return {"id": board_id, "closed": False}
 
-        # Test close
         with patch.object(board_close, "TrelloClient", return_value=FakeClient()), patch.object(
             sys, "argv", ["board_close.py", "--board", "B"]
         ), redirect_stdout(io.StringIO()):
             board_close.run()
         self.assertEqual(calls["close_board"], "board123")
 
-        # Test reopen
         with patch.object(board_reopen, "TrelloClient", return_value=FakeClient()), patch.object(
             sys, "argv", ["board_reopen.py", "--board", "B"]
         ), redirect_stdout(io.StringIO()):
@@ -300,7 +296,7 @@ class CliCompatibilityTests(unittest.TestCase):
         with patch.object(labels_list, "TrelloClient", return_value=FakeClient()), patch.object(
             sys, "argv", ["labels_list.py", "--board", "B"]
         ), redirect_stdout(io.StringIO()):
-            labels_list.main()
+            labels_list.run()
         self.assertEqual(calls["list_board_labels"], "board123")
 
     def test_label_create(self) -> None:
@@ -318,7 +314,7 @@ class CliCompatibilityTests(unittest.TestCase):
         with patch.object(label_create, "TrelloClient", return_value=FakeClient()), patch.object(
             sys, "argv", ["label_create.py", "--board", "B", "--name", "Urgent", "--color", "red"]
         ), redirect_stdout(io.StringIO()):
-            label_create.main()
+            label_create.run()
         self.assertEqual(calls["create_board_label"], ("board123", "Urgent", "red"))
 
     def test_card_label_add_remove(self) -> None:
@@ -327,7 +323,7 @@ class CliCompatibilityTests(unittest.TestCase):
         class FakeClient:
             def resolve_card(self, card, board_ref, list_ref):
                 calls["resolve_card"] = (card, board_ref, list_ref)
-                return {"id": "card123", "name": "Card", "board_id": "board123"}
+                return {"id": "card123", "name": "Card", "board_id": "board123", "raw": {"idBoard": "board123"}}
 
             def resolve_label(self, board_id, label_ref):
                 calls["resolve_label"] = (board_id, label_ref)
@@ -341,18 +337,16 @@ class CliCompatibilityTests(unittest.TestCase):
                 calls["remove_label"] = (card_id, label_id)
                 return {}
 
-        # Test add
         with patch.object(card_label, "TrelloClient", return_value=FakeClient()), patch.object(
             sys, "argv", ["card_label.py", "--card", "C", "--board", "B", "--label", "L"]
         ), redirect_stdout(io.StringIO()):
-            card_label.main()
+            card_label.run()
         self.assertEqual(calls["add_label"], ("card123", "label123"))
 
-        # Test remove
         with patch.object(card_label, "TrelloClient", return_value=FakeClient()), patch.object(
             sys, "argv", ["card_label.py", "--card", "C", "--board", "B", "--label", "L", "--remove"]
         ), redirect_stdout(io.StringIO()):
-            card_label.main()
+            card_label.run()
         self.assertEqual(calls["remove_label"], ("card123", "label123"))
 
 
@@ -460,10 +454,10 @@ class ResolutionTests(unittest.TestCase):
             {"id": "m1", "username": "alice", "fullName": "Alice Smith"},
             {"id": "m2", "username": "bob", "fullName": "Bob Jones"},
         ]
-        
+
         result = TrelloClient.resolve_member(client, "alice", "b1")
         self.assertEqual(result["id"], "m1")
-        
+
         result = TrelloClient.resolve_member(client, "@bob", "b1")
         self.assertEqual(result["id"], "m2")
 
@@ -472,7 +466,7 @@ class ResolutionTests(unittest.TestCase):
         client.list_members_on_board = lambda board_id: [
             {"id": "m1", "username": "alice", "fullName": "Alice Smith"},
         ]
-        
+
         result = TrelloClient.resolve_member(client, "Alice Smith", "b1")
         self.assertEqual(result["id"], "m1")
 
@@ -482,7 +476,7 @@ class ResolutionTests(unittest.TestCase):
             {"id": "m1", "username": "alice", "fullName": "Alice Smith"},
             {"id": "m2", "username": "alice.smith", "fullName": "Alice Smith"},
         ]
-        
+
         with self.assertRaises(AmbiguousMatchError):
             TrelloClient.resolve_member(client, "Alice Smith", "b1")
 
