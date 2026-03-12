@@ -30,7 +30,7 @@ All scripts print JSON on success and exit non-zero on failure.
 - If a board/list/card name matches multiple records, stop and ask exactly one clarifying question.
 - For list name lookup, provide `--board` unless the user already gave a Trello list ID.
 - For card name lookup, provide `--list` when possible; otherwise provide `--board`.
-- v1 supports create, read/list, move, comment, attach-link, update title/description/dates, archive, member assignment, and labels.
+- v1 supports create, read/list, move, comment, attach-link, update title/description/dates, archive/unarchive, member assignment, and labels.
 - v1 does not support delete, checklists, webhooks, or automation.
 
 ## Commands
@@ -53,6 +53,18 @@ Get board details:
 
 ```bash
 python3 scripts/board_get.py --board "Launch Planning"
+```
+
+Close a board:
+
+```bash
+python3 scripts/board_close.py --board "Launch Planning"
+```
+
+Reopen a board:
+
+```bash
+python3 scripts/board_reopen.py --board "Launch Planning"
 ```
 
 List board labels:
@@ -189,7 +201,10 @@ python3 scripts/card_unassign.py --board "Launch Planning" --list "Doing" --card
 - `scripts/cards_list.py` — list cards on a board or list
 - `scripts/board_get.py` — get board details
 - `scripts/card_get.py` — get card details, recent comments, attachments
-- `scripts/card_update.py` — update card title and/or description
+- `scripts/card_update.py` — update card title, description, due date, start date
+- `scripts/labels_list.py` — list labels on a board
+- `scripts/label_create.py` — create a label on a board
+- `scripts/card_label.py` — add or remove a label on a card
 - `scripts/card_archive.py` — archive card
 - `scripts/members_list.py` — list members on a board
 - `scripts/card_assign.py` — assign member to card
@@ -209,6 +224,12 @@ python3 scripts/card_unassign.py --board "Launch Planning" --list "Doing" --card
 - Show details for the `Launch Planning` board.
 - Show details for the `Draft homepage copy` card.
 - Rename `Draft homepage copy` to `Draft landing page copy` and update the description to `First pass complete`.
+- Set the due date for `Draft landing page copy` to `2026-12-30T17:00:00Z`.
+- Clear the due date for `Draft landing page copy`.
+- List labels on the `Launch Planning` board.
+- Create a `Urgent` label (red) on `Launch Planning`.
+- Add the `Urgent` label to `Draft landing page copy`.
+- Remove the `Urgent` label from `Draft landing page copy`.
 - Archive `Draft landing page copy`.
 - List members on the `Launch Planning` board.
 - Assign `@michael` to `Draft landing page copy` in `Doing` on `Launch Planning`.
