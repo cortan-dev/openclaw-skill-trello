@@ -13,7 +13,18 @@ sys.path.insert(0, str(SCRIPTS_DIR))
 
 import card_move  # noqa: E402
 import card_update  # noqa: E402
+import card_unarchive  # noqa: E402
+import list_archive  # noqa: E402
+import list_unarchive  # noqa: E402
+import board_close  # noqa: E402
+import board_reopen  # noqa: E402
 import list_create  # noqa: E402
+import members_list # noqa: E402
+import card_assign # noqa: E402
+import card_unassign # noqa: E402
+import labels_list # noqa: E402
+import label_create # noqa: E402
+import card_label # noqa: E402
 from trello_api import (  # noqa: E402
     AmbiguousMatchError,
     NotFoundError,
@@ -180,7 +191,7 @@ class CliCompatibilityTests(unittest.TestCase):
                 calls["resolve_card"] = (card, board, list_name)
                 return {"id": "card123"}
 
-            def update_card(self, card_id, name=None, desc=None):
+            def update_card(self, card_id, name=None, desc=None, due=None, start=None):
                 calls["update_card"] = (card_id, name, desc)
                 return {"id": card_id, "name": name, "desc": desc}
 
@@ -193,6 +204,156 @@ class CliCompatibilityTests(unittest.TestCase):
 
         self.assertEqual(calls["resolve_card"], ("Ship it", "Roadmap", None))
         self.assertEqual(calls["update_card"], ("card123", None, "New desc"))
+
+    def test_card_unarchive(self) -> None:
+        calls = {}
+
+        class FakeClient:
+            def resolve_card(self, card, board, list_name):
+                calls["resolve_card"] = (card, board, list_name)
+                return {"id": "card123"}
+
+            def unarchive_card(self, card_id):
+                calls["unarchive_card"] = card_id
+                return {"id": card_id, "closed": False}
+
+        with patch.object(card_unarchive, "TrelloClient", return_value=FakeClient()), patch.object(
+            sys, "argv", ["card_unarchive.py", "--card", "Archived Card", "--board", "B"]
+        ), redirect_stdout(io.StringIO()):
+            card_unarchive.run()
+
+        self.assertEqual(calls["resolve_card"], ("Archived Card", "B", None))
+        self.assertEqual(calls["unarchive_card"], "card123")
+
+    def test_list_archive_unarchive(self) -> None:
+        calls = {}
+
+        class FakeClient:
+            def resolve_list(self, list_ref, board_ref):
+                calls["resolve_list"] = (list_ref, board_ref)
+                return {"id": "list123"}
+
+            def archive_list(self, list_id):
+                calls["archive_list"] = list_id
+                return {"id": list_id, "closed": True}
+
+            def unarchive_list(self, list_id):
+                calls["unarchive_list"] = list_id
+                return {"id": list_id, "closed": False}
+
+        # Test archive
+        with patch.object(list_archive, "TrelloClient", return_value=FakeClient()), patch.object(
+            sys, "argv", ["list_archive.py", "--list", "L", "--board", "B"]
+        ), redirect_stdout(io.StringIO()):
+            list_archive.run()
+        self.assertEqual(calls["archive_list"], "list123")
+
+        # Test unarchive
+        with patch.object(list_unarchive, "TrelloClient", return_value=FakeClient()), patch.object(
+            sys, "argv", ["list_unarchive.py", "--list", "L", "--board", "B"]
+        ), redirect_stdout(io.StringIO()):
+            list_unarchive.run()
+        self.assertEqual(calls["unarchive_list"], "list123")
+
+    def test_board_close_reopen(self) -> None:
+        calls = {}
+
+        class FakeClient:
+            def resolve_board(self, board):
+                calls["resolve_board"] = board
+                return {"id": "board123"}
+
+            def close_board(self, board_id):
+                calls["close_board"] = board_id
+                return {"id": board_id, "closed": True}
+
+            def reopen_board(self, board_id):
+                calls["reopen_board"] = board_id
+                return {"id": board_id, "closed": False}
+
+        # Test close
+        with patch.object(board_close, "TrelloClient", return_value=FakeClient()), patch.object(
+            sys, "argv", ["board_close.py", "--board", "B"]
+        ), redirect_stdout(io.StringIO()):
+            board_close.run()
+        self.assertEqual(calls["close_board"], "board123")
+
+        # Test reopen
+        with patch.object(board_reopen, "TrelloClient", return_value=FakeClient()), patch.object(
+            sys, "argv", ["board_reopen.py", "--board", "B"]
+        ), redirect_stdout(io.StringIO()):
+            board_reopen.run()
+        self.assertEqual(calls["reopen_board"], "board123")
+
+    def test_labels_list(self) -> None:
+        calls = {}
+
+        class FakeClient:
+            def resolve_board(self, board):
+                calls["resolve_board"] = board
+                return {"id": "board123"}
+
+            def list_board_labels(self, board_id):
+                calls["list_board_labels"] = board_id
+                return [{"id": "label123", "name": "Urgent"}]
+
+        with patch.object(labels_list, "TrelloClient", return_value=FakeClient()), patch.object(
+            sys, "argv", ["labels_list.py", "--board", "B"]
+        ), redirect_stdout(io.StringIO()):
+            labels_list.main()
+        self.assertEqual(calls["list_board_labels"], "board123")
+
+    def test_label_create(self) -> None:
+        calls = {}
+
+        class FakeClient:
+            def resolve_board(self, board):
+                calls["resolve_board"] = board
+                return {"id": "board123"}
+
+            def create_board_label(self, board_id, name, color):
+                calls["create_board_label"] = (board_id, name, color)
+                return {"id": "label123", "name": name, "color": color}
+
+        with patch.object(label_create, "TrelloClient", return_value=FakeClient()), patch.object(
+            sys, "argv", ["label_create.py", "--board", "B", "--name", "Urgent", "--color", "red"]
+        ), redirect_stdout(io.StringIO()):
+            label_create.main()
+        self.assertEqual(calls["create_board_label"], ("board123", "Urgent", "red"))
+
+    def test_card_label_add_remove(self) -> None:
+        calls = {}
+
+        class FakeClient:
+            def resolve_card(self, card, board_ref, list_ref):
+                calls["resolve_card"] = (card, board_ref, list_ref)
+                return {"id": "card123", "name": "Card", "board_id": "board123"}
+
+            def resolve_label(self, board_id, label_ref):
+                calls["resolve_label"] = (board_id, label_ref)
+                return {"id": "label123", "name": "Urgent"}
+
+            def add_label_to_card(self, card_id, label_id):
+                calls["add_label"] = (card_id, label_id)
+                return {}
+
+            def remove_label_from_card(self, card_id, label_id):
+                calls["remove_label"] = (card_id, label_id)
+                return {}
+
+        # Test add
+        with patch.object(card_label, "TrelloClient", return_value=FakeClient()), patch.object(
+            sys, "argv", ["card_label.py", "--card", "C", "--board", "B", "--label", "L"]
+        ), redirect_stdout(io.StringIO()):
+            card_label.main()
+        self.assertEqual(calls["add_label"], ("card123", "label123"))
+
+        # Test remove
+        with patch.object(card_label, "TrelloClient", return_value=FakeClient()), patch.object(
+            sys, "argv", ["card_label.py", "--card", "C", "--board", "B", "--label", "L", "--remove"]
+        ), redirect_stdout(io.StringIO()):
+            card_label.main()
+        self.assertEqual(calls["remove_label"], ("card123", "label123"))
 
 
 class ResolutionTests(unittest.TestCase):
@@ -292,6 +453,38 @@ class ResolutionTests(unittest.TestCase):
 
         self.assertIn("Todo", str(exc.exception))
         self.assertIn("Doing", str(exc.exception))
+
+    def test_resolve_member_by_username(self) -> None:
+        client = TrelloClient.__new__(TrelloClient)
+        client.list_members_on_board = lambda board_id: [
+            {"id": "m1", "username": "alice", "fullName": "Alice Smith"},
+            {"id": "m2", "username": "bob", "fullName": "Bob Jones"},
+        ]
+        
+        result = TrelloClient.resolve_member(client, "alice", "b1")
+        self.assertEqual(result["id"], "m1")
+        
+        result = TrelloClient.resolve_member(client, "@bob", "b1")
+        self.assertEqual(result["id"], "m2")
+
+    def test_resolve_member_by_fullname(self) -> None:
+        client = TrelloClient.__new__(TrelloClient)
+        client.list_members_on_board = lambda board_id: [
+            {"id": "m1", "username": "alice", "fullName": "Alice Smith"},
+        ]
+        
+        result = TrelloClient.resolve_member(client, "Alice Smith", "b1")
+        self.assertEqual(result["id"], "m1")
+
+    def test_resolve_member_ambiguous(self) -> None:
+        client = TrelloClient.__new__(TrelloClient)
+        client.list_members_on_board = lambda board_id: [
+            {"id": "m1", "username": "alice", "fullName": "Alice Smith"},
+            {"id": "m2", "username": "alice.smith", "fullName": "Alice Smith"},
+        ]
+        
+        with self.assertRaises(AmbiguousMatchError):
+            TrelloClient.resolve_member(client, "Alice Smith", "b1")
 
 
 if __name__ == "__main__":

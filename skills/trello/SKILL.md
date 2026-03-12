@@ -30,8 +30,8 @@ All scripts print JSON on success and exit non-zero on failure.
 - If a board/list/card name matches multiple records, stop and ask exactly one clarifying question.
 - For list name lookup, provide `--board` unless the user already gave a Trello list ID.
 - For card name lookup, provide `--list` when possible; otherwise provide `--board`.
-- v1 supports create, read/list, move, comment, attach-link, update title/description, and archive.
-- v1 does not support delete, labels, due dates, checklists, members, webhooks, or automation.
+- v1 supports create, read/list, move, comment, attach-link, update title/description/dates, archive/unarchive, member assignment, and labels.
+- v1 does not support delete, checklists, webhooks, or automation.
 
 ## Commands
 
@@ -55,6 +55,30 @@ Get board details:
 python3 scripts/board_get.py --board "Launch Planning"
 ```
 
+Close a board:
+
+```bash
+python3 scripts/board_close.py --board "Launch Planning"
+```
+
+Reopen a board:
+
+```bash
+python3 scripts/board_reopen.py --board "Launch Planning"
+```
+
+List board labels:
+
+```bash
+python3 scripts/labels_list.py --board "Launch Planning"
+```
+
+Create a board label:
+
+```bash
+python3 scripts/label_create.py --board "Launch Planning" --name "Urgent" --color "red"
+```
+
 ### Lists
 
 Create a list on a board:
@@ -69,12 +93,24 @@ List lists on a board:
 python3 scripts/lists_list.py --board "Launch Planning"
 ```
 
+Archive a list:
+
+```bash
+python3 scripts/list_archive.py --board "Launch Planning" --list "Todo"
+```
+
+Unarchive a list:
+
+```bash
+python3 scripts/list_unarchive.py --board "Launch Planning" --list "Todo"
+```
+
 ### Cards
 
 Create a card:
 
 ```bash
-python3 scripts/card_create.py --board "Launch Planning" --list "Todo" --name "Draft homepage copy" --description "Need first pass"
+python3 scripts/card_create.py --board "Launch Planning" --list "Todo" --name "Draft homepage copy" --description "Need first pass" --due "2026-12-25T12:00:00Z" --labels "Urgent,Design"
 ```
 
 List cards on a board:
@@ -113,16 +149,60 @@ Attach a link:
 python3 scripts/card_attach_link.py --board "Launch Planning" --list "Doing" --card "Draft homepage copy" --url "https://example.com/spec" --name "Spec"
 ```
 
-Update a card title and/or description:
+Update a card (title, description, due date, start date):
 
 ```bash
-python3 scripts/card_update.py --board "Launch Planning" --list "Doing" --card "Draft homepage copy" --name "Draft landing page copy" --description "First pass complete"
+python3 scripts/card_update.py --board "Launch Planning" --list "Doing" --card "Draft homepage copy" --name "Draft landing page copy" --description "First pass complete" --due "2026-12-30T17:00:00Z"
+```
+
+Clear card dates:
+
+```bash
+python3 scripts/card_update.py --board "Launch Planning" --card "Draft landing page copy" --due "null" --start "null"
+```
+
+Add a label to a card:
+
+```bash
+python3 scripts/card_label.py --board "Launch Planning" --card "Draft landing page copy" --label "Urgent"
+```
+
+Remove a label from a card:
+
+```bash
+python3 scripts/card_label.py --board "Launch Planning" --card "Draft landing page copy" --label "Urgent" --remove
 ```
 
 Archive a card:
 
 ```bash
 python3 scripts/card_archive.py --board "Launch Planning" --list "Doing" --card "Draft landing page copy"
+```
+
+Unarchive a card:
+
+```bash
+python3 scripts/card_unarchive.py --board "Launch Planning" --list "Doing" --card "Draft landing page copy"
+```
+
+### Members
+
+List members on a board:
+
+```bash
+python3 scripts/members_list.py --board "Launch Planning"
+```
+
+Assign a member to a card:
+
+```bash
+python3 scripts/card_assign.py --board "Launch Planning" --list "Doing" --card "Draft landing page copy" --member "@michael"
+```
+
+Unassign a member from a card:
+
+```bash
+python3 scripts/card_unassign.py --board "Launch Planning" --list "Doing" --card "Draft landing page copy" --member "@michael"
 ```
 
 ## Action script map
@@ -139,8 +219,19 @@ python3 scripts/card_archive.py --board "Launch Planning" --list "Doing" --card 
 - `scripts/cards_list.py` — list cards on a board or list
 - `scripts/board_get.py` — get board details
 - `scripts/card_get.py` — get card details, recent comments, attachments
-- `scripts/card_update.py` — update card title and/or description
+- `scripts/card_update.py` — update card title, description, due date, start date
+- `scripts/labels_list.py` — list labels on a board
+- `scripts/label_create.py` — create a label on a board
+- `scripts/card_label.py` — add or remove a label on a card
 - `scripts/card_archive.py` — archive card
+- `scripts/card_unarchive.py` — unarchive card
+- `scripts/list_archive.py` — archive list
+- `scripts/list_unarchive.py` — unarchive list
+- `scripts/board_close.py` — close board
+- `scripts/board_reopen.py` — reopen board
+- `scripts/members_list.py` — list members on a board
+- `scripts/card_assign.py` — assign member to card
+- `scripts/card_unassign.py` — unassign member from card
 
 ## Example prompts
 
@@ -156,7 +247,18 @@ python3 scripts/card_archive.py --board "Launch Planning" --list "Doing" --card 
 - Show details for the `Launch Planning` board.
 - Show details for the `Draft homepage copy` card.
 - Rename `Draft homepage copy` to `Draft landing page copy` and update the description to `First pass complete`.
+- Set the due date for `Draft landing page copy` to `2026-12-30T17:00:00Z`.
+- Clear the due date for `Draft landing page copy`.
+- List labels on the `Launch Planning` board.
+- Create a `Urgent` label (red) on `Launch Planning`.
+- Add the `Urgent` label to `Draft landing page copy`.
+- Remove the `Urgent` label from `Draft landing page copy`.
 - Archive `Draft landing page copy`.
+- Unarchive `Draft landing page copy`.
+- Close the `Launch Planning` board.
+- List members on the `Launch Planning` board.
+- Assign `@michael` to `Draft landing page copy` in `Doing` on `Launch Planning`.
+- Unassign `@michael` from `Draft landing page copy`.
 
 ## Smoke test
 
