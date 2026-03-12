@@ -15,7 +15,7 @@ This repo stays thin, script-first, and standard-library based.
 | Cards | create, list, inspect, move, comment, attach link | Card name lookup should use `--list` when possible for tighter scope. |
 | Card metadata | update title, description, due, start | `card_update.py` is the broad mutation entrypoint. |
 | Due date helpers | set due, clear due | `card_due_set.py` and `card_due_clear.py` are the narrow commands when only due should change. |
-| Labels | list board labels, create board labels, add/remove labels on cards | Label matching is by exact name or explicit label ID. |
+| Labels | list board labels, create board labels, add/remove labels on cards | Label matching is by exact case-insensitive name or explicit label ID. |
 | Members | list board members, assign/unassign card members | Member matching is exact username first, then exact full name. |
 | Archive state | archive/unarchive cards and lists | These are state changes and should not be inferred from vague requests. |
 
@@ -61,7 +61,7 @@ Use the safest narrow command that satisfies the request.
 | List | exact case-insensitive list name scoped by `--board`, or Trello list ID | Ask one clarifying question with board context. |
 | Card | exact case-insensitive card name scoped by `--list` or `--board`, or Trello card ID | Ask one clarifying question with board/list context. |
 | Member | exact username (with or without `@`) first, then exact full name, or Trello member ID | Ask one clarifying question listing the candidate members. |
-| Label | exact label name scoped to the board, or Trello label ID | Ask one clarifying question listing the candidate labels. |
+| Label | exact case-insensitive label name scoped to the board, or Trello label ID | Ask one clarifying question listing the candidate labels. |
 
 ## Maintainability guidance
 

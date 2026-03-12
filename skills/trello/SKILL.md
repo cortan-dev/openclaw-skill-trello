@@ -33,7 +33,7 @@ All scripts print JSON on success and exit non-zero on failure.
 - For list name lookup, provide `--board` unless the user already gave a Trello list ID.
 - For card name lookup, provide `--list` when possible; otherwise provide `--board`.
 - Member lookup is exact username first, then exact full name.
-- Label lookup is exact label name unless the user provided a Trello label ID.
+- Label lookup is exact case-insensitive label name unless the user provided a Trello label ID.
 - v1 supports create, read/list, move, comment, attach-link, update title/description/dates, archive/unarchive, member assignment, and labels.
 - Due/start values should be valid ISO 8601 strings; Trello will reject invalid date formats with a clear API error.
 - v1 does not support delete, checklists, webhooks, or automation.
