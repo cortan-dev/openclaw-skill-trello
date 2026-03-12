@@ -2,7 +2,7 @@
 import argparse
 from trello_api import TrelloClient, print_json, main_guard
 
-def main():
+def run():
     parser = argparse.ArgumentParser(description="Create a label on a board")
     parser.add_argument("--board", required=True, help="Board name or ID")
     parser.add_argument("--name", required=True, help="Label name")
@@ -15,4 +15,4 @@ def main():
     print_json(label)
 
 if __name__ == "__main__":
-    main_guard(main)
+    main_guard(run)
