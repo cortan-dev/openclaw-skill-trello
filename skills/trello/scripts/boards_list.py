@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
-from trello_api import TrelloClient, fail, print_json
+from __future__ import annotations
+
+from trello_api import TrelloClient, main_guard, print_json
 
 
-def main() -> None:
+def run() -> None:
     client = TrelloClient()
-    print_json(client.get_boards())
+    print_json(client.list_boards())
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except Exception as exc:
-        fail(exc)
+    main_guard(run)
