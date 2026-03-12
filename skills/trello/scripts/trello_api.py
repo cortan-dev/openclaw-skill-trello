@@ -103,7 +103,7 @@ class TrelloClient:
         return self.request("GET", f"/cards/{card_id}", params={"fields": "name,desc,closed,url,dateLastActivity,idBoard,idList,shortLink,labels,due,start", "actions": "commentCard", "actions_limit": 20, "attachments": "true"})
 
     def create_card(self, list_id: str, name: str, desc: Optional[str] = None, due: Optional[str] = None, labels: Optional[List[str]] = None) -> Dict[str, Any]:
-        params = {"idList": list_id, "name": name, "desc": desc, "due": due}
+        params = {"idList": list_id, "name": name, "desc": desc, "due": _normalize_date_param(due)}
         if labels:
             params["idLabels"] = ",".join(labels)
         return self.request("POST", "/cards", params=params)
@@ -118,7 +118,7 @@ class TrelloClient:
         return self.request("POST", f"/cards/{card_id}/attachments", params={"url": url, "name": name})
 
     def update_card(self, card_id: str, name: Optional[str] = None, desc: Optional[str] = None, due: Optional[str] = None, start: Optional[str] = None) -> Dict[str, Any]:
-        return self.request("PUT", f"/cards/{card_id}", params={"name": name, "desc": desc, "due": due, "start": start})
+        return self.request("PUT", f"/cards/{card_id}", params={"name": name, "desc": desc, "due": _normalize_date_param(due), "start": _normalize_date_param(start)})
 
     def archive_card(self, card_id: str) -> Dict[str, Any]:
         return self.request("PUT", f"/cards/{card_id}", params={"closed": "true"})
@@ -168,8 +168,6 @@ class TrelloClient:
         labels = self.list_board_labels(board_id)
         matches = [label for label in labels if normalize(label.get("name")) == normalize(label_ref)]
         if not matches:
-            matches = [label for label in labels if normalize(label.get("color")) == normalize(label_ref)]
-        if not matches:
             raise NotFoundError(f"No label matched '{label_ref}' on this board.")
         if len(matches) > 1:
             raise AmbiguousMatchError("label", label_ref, matches)
@@ -181,10 +179,11 @@ class TrelloClient:
             return {"id": data["id"], "fullName": data["fullName"], "username": data["username"], "raw": data}
 
         ref = normalize(member_ref).lstrip("@")
-        matches = []
-        for member in self.list_members_on_board(board_id):
-            if normalize(member.get("username")) == ref or normalize(member.get("fullName")) == normalize(member_ref):
-                matches.append(member)
+        members = self.list_members_on_board(board_id)
+        
+        matches = [m for m in members if normalize(m.get("username")) == ref]
+        if not matches:
+            matches = [m for m in members if normalize(m.get("fullName")) == normalize(member_ref)]
 
         if not matches:
             raise NotFoundError(f"No member matched '{member_ref}' on board '{board_id}'.")
@@ -278,6 +277,14 @@ class TrelloClient:
             "raw": match,
         }
 
+
+def _normalize_date_param(value: Optional[str]) -> Optional[str]:
+    """Helper to validate date formats. Trello accepts ISO 8601 or 'null' to clear. Invalid strings will be rejected by Trello with a clear error."""
+    if value is None:
+        return None
+    if value.strip().casefold() == "null":
+        return "null"
+    return value
 
 def normalize(value: Optional[str]) -> str:
     return (value or "").strip().casefold()
