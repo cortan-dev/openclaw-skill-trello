@@ -8,7 +8,6 @@ description: Manage Trello boards, lists, and cards via the Trello REST API. Use
 Use the thin Python scripts in `scripts/` for all Trello work. They talk directly to Trello's official REST API and authenticate with these existing env vars:
 
 - `TRELLO_API_KEY`
-- `TRELLO_API_SECRET`
 - `TRELLO_TOKEN`
 
 Do not add workflow opinions. Do not invent local state. Resolve names to Trello IDs through the shared client.

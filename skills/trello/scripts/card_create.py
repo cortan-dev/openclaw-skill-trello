@@ -11,7 +11,7 @@ def run() -> None:
     parser.add_argument("--list", required=True, help="List name or Trello list ID")
     parser.add_argument("--board", help="Required when --list is a name")
     parser.add_argument("--name", required=True)
-    parser.add_argument("--description")
+    parser.add_argument("--description", "--desc", dest="description")
     args = parser.parse_args()
 
     client = TrelloClient()

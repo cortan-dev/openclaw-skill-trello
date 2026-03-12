@@ -12,11 +12,11 @@ def run() -> None:
     parser.add_argument("--board", help="Board name or Trello board ID")
     parser.add_argument("--list", dest="list_name", help="List name or Trello list ID")
     parser.add_argument("--name")
-    parser.add_argument("--description")
+    parser.add_argument("--description", "--desc", dest="description")
     args = parser.parse_args()
 
     if args.name is None and args.description is None:
-        raise TrelloError("Provide --name and/or --description.")
+        raise TrelloError("Provide --name and/or --description (or legacy --desc).")
 
     client = TrelloClient()
     card = client.resolve_card(args.card, args.board, args.list_name)
