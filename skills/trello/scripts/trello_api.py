@@ -6,8 +6,7 @@ import os
 import sys
 import urllib.parse
 import urllib.request
-from dataclasses import dataclass
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, List, Optional
 
 BASE_URL = "https://api.trello.com/1"
 
@@ -43,23 +42,15 @@ class NotFoundError(TrelloError):
     pass
 
 
-@dataclass
-class ResolutionContext:
-    board_name: Optional[str] = None
-    list_name: Optional[str] = None
-
-
 class TrelloClient:
     def __init__(self) -> None:
         self.key = os.environ.get("TRELLO_API_KEY")
         self.token = os.environ.get("TRELLO_TOKEN")
-        self.secret = os.environ.get("TRELLO_API_SECRET")
         missing = [
             name
             for name, value in {
                 "TRELLO_API_KEY": self.key,
                 "TRELLO_TOKEN": self.token,
-                "TRELLO_API_SECRET": self.secret,
             }.items()
             if not value
         ]
@@ -99,8 +90,8 @@ class TrelloClient:
     def list_lists(self, board_id: str) -> List[Dict[str, Any]]:
         return self.request("GET", f"/boards/{board_id}/lists", params={"fields": "name,closed,pos", "filter": "all"})
 
-    def create_list(self, board_id: str, name: str) -> Dict[str, Any]:
-        return self.request("POST", "/lists", params={"idBoard": board_id, "name": name})
+    def create_list(self, board_id: str, name: str, pos: str = "bottom") -> Dict[str, Any]:
+        return self.request("POST", "/lists", params={"idBoard": board_id, "name": name, "pos": pos})
 
     def list_cards_on_board(self, board_id: str) -> List[Dict[str, Any]]:
         return self.request("GET", f"/boards/{board_id}/cards", params={"fields": "name,desc,idList,closed,url,dateLastActivity", "filter": "all"})

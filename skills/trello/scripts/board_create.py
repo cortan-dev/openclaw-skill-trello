@@ -9,7 +9,7 @@ from trello_api import TrelloClient, main_guard, print_json
 def run() -> None:
     parser = argparse.ArgumentParser(description="Create a Trello board")
     parser.add_argument("--name", required=True)
-    parser.add_argument("--description")
+    parser.add_argument("--description", "--desc", dest="description")
     args = parser.parse_args()
 
     client = TrelloClient()
