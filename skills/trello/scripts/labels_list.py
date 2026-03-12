@@ -12,5 +12,9 @@ def run():
     labels = client.list_board_labels(board["id"])
     print_json(labels)
 
+
+main = run
+
+
 if __name__ == "__main__":
     main_guard(run)

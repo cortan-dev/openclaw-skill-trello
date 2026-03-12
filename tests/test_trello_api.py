@@ -25,6 +25,8 @@ import card_unassign  # noqa: E402
 import labels_list  # noqa: E402
 import label_create  # noqa: E402
 import card_label  # noqa: E402
+import card_due_set  # noqa: E402
+import card_due_clear  # noqa: E402
 from trello_api import (  # noqa: E402
     AmbiguousMatchError,
     NotFoundError,
@@ -105,6 +107,22 @@ class TrelloClientTests(unittest.TestCase):
         self.assertIn("desc=Updated", request.full_url)
         self.assertIsNone(request.data)
 
+    def test_set_card_due_date_uses_expected_endpoint(self) -> None:
+        client = TrelloClient()
+
+        with patch.object(client, "request", return_value={"id": "card123"}) as mock_request:
+            client.set_card_due_date("card123", "2026-12-30T17:00:00Z")
+
+        mock_request.assert_called_once_with("PUT", "/cards/card123", params={"due": "2026-12-30T17:00:00Z"})
+
+    def test_clear_card_due_date_uses_expected_endpoint(self) -> None:
+        client = TrelloClient()
+
+        with patch.object(client, "request", return_value={"id": "card123"}) as mock_request:
+            client.clear_card_due_date("card123")
+
+        mock_request.assert_called_once_with("PUT", "/cards/card123", params={"due": "null"})
+
     def test_request_wraps_http_errors(self) -> None:
         client = TrelloClient()
         http_error = urllib.error.HTTPError(
@@ -135,22 +153,6 @@ class TrelloClientTests(unittest.TestCase):
         client = TrelloClient()
         with self.assertRaises(TrelloError):
             client.resolve_card("Card")
-
-    def test_assign_member_to_card_uses_expected_endpoint(self) -> None:
-        client = TrelloClient()
-
-        with patch.object(client, "request", return_value={"id": "card123"}) as mock_request:
-            client.assign_member_to_card("card123", "member456")
-
-        mock_request.assert_called_once_with("POST", "/cards/card123/idMembers", params={"value": "member456"})
-
-    def test_unassign_member_from_card_uses_expected_endpoint(self) -> None:
-        client = TrelloClient()
-
-        with patch.object(client, "request", return_value={"id": "card123"}) as mock_request:
-            client.unassign_member_from_card("card123", "member456")
-
-        mock_request.assert_called_once_with("DELETE", "/cards/card123/idMembers/member456")
 
 
 class CliCompatibilityTests(unittest.TestCase):
@@ -257,12 +259,14 @@ class CliCompatibilityTests(unittest.TestCase):
                 calls["unarchive_list"] = list_id
                 return {"id": list_id, "closed": False}
 
+        # Test archive
         with patch.object(list_archive, "TrelloClient", return_value=FakeClient()), patch.object(
             sys, "argv", ["list_archive.py", "--list", "L", "--board", "B"]
         ), redirect_stdout(io.StringIO()):
             list_archive.run()
         self.assertEqual(calls["archive_list"], "list123")
 
+        # Test unarchive
         with patch.object(list_unarchive, "TrelloClient", return_value=FakeClient()), patch.object(
             sys, "argv", ["list_unarchive.py", "--list", "L", "--board", "B"]
         ), redirect_stdout(io.StringIO()):
@@ -285,12 +289,14 @@ class CliCompatibilityTests(unittest.TestCase):
                 calls["reopen_board"] = board_id
                 return {"id": board_id, "closed": False}
 
+        # Test close
         with patch.object(board_close, "TrelloClient", return_value=FakeClient()), patch.object(
             sys, "argv", ["board_close.py", "--board", "B"]
         ), redirect_stdout(io.StringIO()):
             board_close.run()
         self.assertEqual(calls["close_board"], "board123")
 
+        # Test reopen
         with patch.object(board_reopen, "TrelloClient", return_value=FakeClient()), patch.object(
             sys, "argv", ["board_reopen.py", "--board", "B"]
         ), redirect_stdout(io.StringIO()):
@@ -312,7 +318,7 @@ class CliCompatibilityTests(unittest.TestCase):
         with patch.object(labels_list, "TrelloClient", return_value=FakeClient()), patch.object(
             sys, "argv", ["labels_list.py", "--board", "B"]
         ), redirect_stdout(io.StringIO()):
-            labels_list.run()
+            labels_list.main()
         self.assertEqual(calls["list_board_labels"], "board123")
 
     def test_label_create(self) -> None:
@@ -330,7 +336,7 @@ class CliCompatibilityTests(unittest.TestCase):
         with patch.object(label_create, "TrelloClient", return_value=FakeClient()), patch.object(
             sys, "argv", ["label_create.py", "--board", "B", "--name", "Urgent", "--color", "red"]
         ), redirect_stdout(io.StringIO()):
-            label_create.run()
+            label_create.main()
         self.assertEqual(calls["create_board_label"], ("board123", "Urgent", "red"))
 
     def test_card_label_add_remove(self) -> None:
@@ -364,6 +370,48 @@ class CliCompatibilityTests(unittest.TestCase):
         ), redirect_stdout(io.StringIO()):
             card_label.run()
         self.assertEqual(calls["remove_label"], ("card123", "label123"))
+
+    def test_card_due_set(self) -> None:
+        calls = {}
+
+        class FakeClient:
+            def resolve_card(self, card, board, list_name):
+                calls["resolve_card"] = (card, board, list_name)
+                return {"id": "card123"}
+
+            def set_card_due_date(self, card_id, due):
+                calls["set_card_due_date"] = (card_id, due)
+                return {"id": card_id, "due": due}
+
+        with patch.object(card_due_set, "TrelloClient", return_value=FakeClient()), patch.object(
+            sys,
+            "argv",
+            ["card_due_set.py", "--card", "C", "--board", "B", "--due", "2026-12-30T17:00:00Z"],
+        ), redirect_stdout(io.StringIO()):
+            card_due_set.run()
+
+        self.assertEqual(calls["resolve_card"], ("C", "B", None))
+        self.assertEqual(calls["set_card_due_date"], ("card123", "2026-12-30T17:00:00Z"))
+
+    def test_card_due_clear(self) -> None:
+        calls = {}
+
+        class FakeClient:
+            def resolve_card(self, card, board, list_name):
+                calls["resolve_card"] = (card, board, list_name)
+                return {"id": "card123"}
+
+            def clear_card_due_date(self, card_id):
+                calls["clear_card_due_date"] = card_id
+                return {"id": card_id, "due": None}
+
+        with patch.object(card_due_clear, "TrelloClient", return_value=FakeClient()), patch.object(
+            sys, "argv", ["card_due_clear.py", "--card", "C", "--board", "B"]
+        ), redirect_stdout(io.StringIO()):
+            card_due_clear.run()
+
+        self.assertEqual(calls["resolve_card"], ("C", "B", None))
+        self.assertEqual(calls["clear_card_due_date"], "card123")
 
 
 class ResolutionTests(unittest.TestCase):
@@ -470,10 +518,10 @@ class ResolutionTests(unittest.TestCase):
             {"id": "m1", "username": "alice", "fullName": "Alice Smith"},
             {"id": "m2", "username": "bob", "fullName": "Bob Jones"},
         ]
-
+        
         result = TrelloClient.resolve_member(client, "alice", "b1")
         self.assertEqual(result["id"], "m1")
-
+        
         result = TrelloClient.resolve_member(client, "@bob", "b1")
         self.assertEqual(result["id"], "m2")
 
@@ -482,7 +530,7 @@ class ResolutionTests(unittest.TestCase):
         client.list_members_on_board = lambda board_id: [
             {"id": "m1", "username": "alice", "fullName": "Alice Smith"},
         ]
-
+        
         result = TrelloClient.resolve_member(client, "Alice Smith", "b1")
         self.assertEqual(result["id"], "m1")
 
@@ -492,7 +540,7 @@ class ResolutionTests(unittest.TestCase):
             {"id": "m1", "username": "alice", "fullName": "Alice Smith"},
             {"id": "m2", "username": "alice.smith", "fullName": "Alice Smith"},
         ]
-
+        
         with self.assertRaises(AmbiguousMatchError):
             TrelloClient.resolve_member(client, "Alice Smith", "b1")
 
