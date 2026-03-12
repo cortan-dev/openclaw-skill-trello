@@ -407,16 +407,24 @@ def find_existing_comment(comments: List[Dict[str, Any]], head_sha: str) -> Opti
     return None
 
 
+def get_env_or_default(name: str, default: str) -> str:
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    value = value.strip()
+    return value or default
+
+
 def build_llm_client() -> tuple[LLMClient, str, str]:
     anthropic_api_key = os.environ.get("ANTHROPIC_API_KEY")
     if anthropic_api_key:
         return (
             AnthropicClient(
                 anthropic_api_key,
-                os.environ.get("ANTHROPIC_BASE_URL", DEFAULT_ANTHROPIC_API_BASE_URL),
+                get_env_or_default("ANTHROPIC_BASE_URL", DEFAULT_ANTHROPIC_API_BASE_URL),
             ),
-            os.environ.get("ASSISTANT_REVIEW_MODEL", DEFAULT_ANTHROPIC_ASSISTANT_MODEL),
-            os.environ.get("SPARTAN_REVIEW_MODEL", DEFAULT_ANTHROPIC_SPARTAN_MODEL),
+            get_env_or_default("ASSISTANT_REVIEW_MODEL", DEFAULT_ANTHROPIC_ASSISTANT_MODEL),
+            get_env_or_default("SPARTAN_REVIEW_MODEL", DEFAULT_ANTHROPIC_SPARTAN_MODEL),
         )
 
     openai_api_key = os.environ.get("OPENAI_API_KEY")
@@ -424,10 +432,10 @@ def build_llm_client() -> tuple[LLMClient, str, str]:
         return (
             OpenAICompatibleClient(
                 openai_api_key,
-                os.environ.get("OPENAI_BASE_URL", DEFAULT_OPENAI_API_BASE_URL),
+                get_env_or_default("OPENAI_BASE_URL", DEFAULT_OPENAI_API_BASE_URL),
             ),
-            os.environ.get("ASSISTANT_REVIEW_MODEL", DEFAULT_OPENAI_ASSISTANT_MODEL),
-            os.environ.get("SPARTAN_REVIEW_MODEL", DEFAULT_OPENAI_SPARTAN_MODEL),
+            get_env_or_default("ASSISTANT_REVIEW_MODEL", DEFAULT_OPENAI_ASSISTANT_MODEL),
+            get_env_or_default("SPARTAN_REVIEW_MODEL", DEFAULT_OPENAI_SPARTAN_MODEL),
         )
 
     raise ReviewError(

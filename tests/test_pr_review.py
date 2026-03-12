@@ -84,7 +84,7 @@ class ExistingCommentTests(unittest.TestCase):
 
 
 class MainFlowTests(unittest.TestCase):
-    def test_main_skips_cleanly_when_openai_key_missing(self) -> None:
+    def test_main_skips_cleanly_when_no_llm_credentials_exist(self) -> None:
         event = {
             "action": "opened",
             "repository": {"owner": {"login": "cortan-dev"}, "name": "openclaw-skill-trello"},
@@ -103,6 +103,8 @@ class MainFlowTests(unittest.TestCase):
             event_path = Path(tmpdir) / "event.json"
             event_path.write_text(json.dumps(event))
             stdout = io.StringIO()
+            mock_client = MagicMock()
+            mock_client.list_issue_comments.return_value = []
             with patch.dict(
                 os.environ,
                 {
@@ -110,13 +112,15 @@ class MainFlowTests(unittest.TestCase):
                     "GITHUB_EVENT_NAME": "pull_request",
                     "GITHUB_TOKEN": "gh-token",
                 },
-                clear=False,
+                clear=True,
             ):
-                with patch("sys.stdout", stdout):
-                    exit_code = pr_review.main()
+                with patch.object(pr_review, "GitHubClient", return_value=mock_client):
+                    with patch.object(pr_review, "build_review_input", return_value="review-input"):
+                        with patch("sys.stdout", stdout):
+                            with self.assertRaises(pr_review.ReviewError) as ctx:
+                                pr_review.main()
 
-        self.assertEqual(exit_code, 0)
-        self.assertIn("OPENAI_API_KEY is not configured; skipping advisory PR review.", stdout.getvalue())
+        self.assertIn("No LLM credentials configured.", str(ctx.exception))
 
     def test_main_skips_duplicate_review_for_same_sha(self) -> None:
         pr_context = pr_review.PullRequestContext(
