@@ -12,6 +12,8 @@ Use the thin Python scripts in `scripts/` for all Trello work. They talk directl
 
 Do not add workflow opinions. Do not invent local state. Resolve names to Trello IDs through the shared client.
 
+For current coverage, roadmap, safety rules, ambiguity handling, and maintainer guidance, see `../../docs/trello-capability-matrix.md`.
+
 ## Quick start
 
 Run scripts from the skill directory or from anywhere with the scripts directory on `PYTHONPATH`.
@@ -27,9 +29,11 @@ All scripts print JSON on success and exit non-zero on failure.
 
 - Prefer Trello IDs when the user provides them.
 - When the user gives human-friendly names, let `scripts/trello_api.py` resolve them.
-- If a board/list/card name matches multiple records, stop and ask exactly one clarifying question.
+- If a board/list/card/member/label name matches multiple records, stop and ask exactly one clarifying question.
 - For list name lookup, provide `--board` unless the user already gave a Trello list ID.
 - For card name lookup, provide `--list` when possible; otherwise provide `--board`.
+- Member lookup is exact username first, then exact full name.
+- Label lookup is exact case-insensitive label name unless the user provided a Trello label ID.
 - v1 supports create, read/list, move, comment, attach-link, update title/description/dates, archive/unarchive, member assignment, and labels.
 - Due/start values should be valid ISO 8601 strings; Trello will reject invalid date formats with a clear API error.
 - v1 does not support delete, checklists, webhooks, or automation.
@@ -218,6 +222,14 @@ Unassign a member from a card:
 python3 scripts/card_unassign.py --board "Launch Planning" --list "Doing" --card "Draft landing page copy" --member "@michael"
 ```
 
+## Capability summary
+
+| Category | Status |
+| --- | --- |
+| Supported now | boards, lists, cards, comments, attachments, labels, due/start dates, archive/unarchive, member assignment |
+| Near-term | checklist support, dedicated start-date helpers, richer read-only history/detail scripts |
+| Intentionally unsupported | delete flows, board admin/invites, webhooks/listeners, local sync state, automation |
+
 ## Action script map
 
 - `scripts/trello_api.py` — shared Trello API client, auth, error handling, name resolution
@@ -275,6 +287,14 @@ python3 scripts/card_unassign.py --board "Launch Planning" --list "Doing" --card
 - List members on the `Launch Planning` board.
 - Assign `@michael` to `Draft landing page copy` in `Doing` on `Launch Planning`.
 - Unassign `@michael` from `Draft landing page copy`.
+
+## Maintainer notes
+
+- Add new Trello endpoints in `scripts/trello_api.py` first.
+- Keep each CLI script thin: parse args, resolve names, call one client method, print JSON.
+- Reuse the shared resolver methods and common flag names instead of duplicating parsing logic.
+- Prefer adding a narrow new script for a single mutation over making an existing mutation script more surprising.
+- Add at least one request-construction test, one representative CLI contract test, and one failure-path test for new script families.
 
 ## Smoke test
 

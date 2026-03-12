@@ -11,6 +11,7 @@ from unittest.mock import patch
 SCRIPTS_DIR = Path(__file__).resolve().parents[1] / "skills" / "trello" / "scripts"
 sys.path.insert(0, str(SCRIPTS_DIR))
 
+import card_create  # noqa: E402
 import card_move  # noqa: E402
 import card_update  # noqa: E402
 import card_unarchive  # noqa: E402
@@ -33,6 +34,7 @@ from trello_api import (  # noqa: E402
     TrelloClient,
     TrelloError,
     looks_like_id,
+    main_guard,
 )
 
 
@@ -107,6 +109,18 @@ class TrelloClientTests(unittest.TestCase):
         self.assertIn("desc=Updated", request.full_url)
         self.assertIsNone(request.data)
 
+    def test_create_card_uses_expected_due_and_labels(self) -> None:
+        client = TrelloClient()
+
+        with patch.object(client, "request", return_value={"id": "card123"}) as mock_request:
+            client.create_card("list123", "Ship it", desc="Ready", due="2026-12-30T17:00:00Z", labels=["label1", "label2"])
+
+        mock_request.assert_called_once_with(
+            "POST",
+            "/cards",
+            params={"idList": "list123", "name": "Ship it", "desc": "Ready", "due": "2026-12-30T17:00:00Z", "idLabels": "label1,label2"},
+        )
+
     def test_set_card_due_date_uses_expected_endpoint(self) -> None:
         client = TrelloClient()
 
@@ -122,6 +136,14 @@ class TrelloClientTests(unittest.TestCase):
             client.clear_card_due_date("card123")
 
         mock_request.assert_called_once_with("PUT", "/cards/card123", params={"due": "null"})
+
+    def test_update_card_preserves_null_date_clears(self) -> None:
+        client = TrelloClient()
+
+        with patch.object(client, "request", return_value={"id": "card123"}) as mock_request:
+            client.update_card("card123", due="null", start="NULL")
+
+        mock_request.assert_called_once_with("PUT", "/cards/card123", params={"name": None, "desc": None, "due": "null", "start": "null"})
 
     def test_request_wraps_http_errors(self) -> None:
         client = TrelloClient()
@@ -156,6 +178,50 @@ class TrelloClientTests(unittest.TestCase):
 
 
 class CliCompatibilityTests(unittest.TestCase):
+    def test_card_create_passes_due_and_labels(self) -> None:
+        calls = {}
+
+        class FakeClient:
+            def resolve_list(self, list_ref, board_ref=None):
+                calls["resolve_list"] = (list_ref, board_ref)
+                return {"id": "list123", "board_id": "board123"}
+
+            def resolve_label(self, board_id, label_ref):
+                calls.setdefault("resolve_label", []).append((board_id, label_ref))
+                return {"id": f"id-{label_ref}"}
+
+            def create_card(self, list_id, name, desc=None, due=None, labels=None):
+                calls["create_card"] = (list_id, name, desc, due, labels)
+                return {"id": "card123"}
+
+        with patch.object(card_create, "TrelloClient", return_value=FakeClient()), patch.object(
+            sys,
+            "argv",
+            [
+                "card_create.py",
+                "--board",
+                "Roadmap",
+                "--list",
+                "Todo",
+                "--name",
+                "Ship it",
+                "--description",
+                "Ready",
+                "--due",
+                "2026-12-30T17:00:00Z",
+                "--labels",
+                "Urgent,Backend",
+            ],
+        ), redirect_stdout(io.StringIO()):
+            card_create.run()
+
+        self.assertEqual(calls["resolve_list"], ("Todo", "Roadmap"))
+        self.assertEqual(calls["resolve_label"], [("board123", "Urgent"), ("board123", "Backend")])
+        self.assertEqual(
+            calls["create_card"],
+            ("list123", "Ship it", "Ready", "2026-12-30T17:00:00Z", ["id-Urgent", "id-Backend"]),
+        )
+
     def test_list_create_preserves_legacy_pos_flag(self) -> None:
         calls = {}
 
@@ -414,6 +480,30 @@ class CliCompatibilityTests(unittest.TestCase):
         self.assertEqual(calls["clear_card_due_date"], "card123")
 
 
+class FailureModeTests(unittest.TestCase):
+    def test_main_guard_surfaces_trello_errors_to_stderr(self) -> None:
+        stderr = io.StringIO()
+        with patch.object(sys, "stderr", stderr), self.assertRaises(SystemExit) as exc:
+            main_guard(lambda: (_ for _ in ()).throw(TrelloError("boom")))
+
+        self.assertEqual(exc.exception.code, 2)
+        self.assertIn("boom", stderr.getvalue())
+
+    def test_card_label_missing_board_context_message(self) -> None:
+        class FakeClient:
+            def resolve_card(self, card, board_ref, list_ref):
+                return {"id": "card123", "name": "Card", "raw": {}}
+
+        stderr = io.StringIO()
+        with patch.object(card_label, "TrelloClient", return_value=FakeClient()), patch.object(
+            sys, "argv", ["card_label.py", "--card", "C", "--board", "B", "--label", "Urgent"]
+        ), patch.object(sys, "stderr", stderr), self.assertRaises(SystemExit) as exc:
+            main_guard(card_label.run)
+
+        self.assertEqual(exc.exception.code, 2)
+        self.assertIn("Could not determine board for card 'C'", stderr.getvalue())
+
+
 class ResolutionTests(unittest.TestCase):
     def test_looks_like_id(self) -> None:
         self.assertTrue(looks_like_id("a" * 24))
@@ -540,9 +630,23 @@ class ResolutionTests(unittest.TestCase):
             {"id": "m1", "username": "alice", "fullName": "Alice Smith"},
             {"id": "m2", "username": "alice.smith", "fullName": "Alice Smith"},
         ]
-        
+
         with self.assertRaises(AmbiguousMatchError):
             TrelloClient.resolve_member(client, "Alice Smith", "b1")
+
+    def test_resolve_label_ambiguous_message_includes_choices(self) -> None:
+        client = TrelloClient.__new__(TrelloClient)
+        client.list_board_labels = lambda board_id: [
+            {"id": "l1", "name": "Urgent"},
+            {"id": "l2", "name": "Urgent"},
+        ]
+
+        with self.assertRaises(AmbiguousMatchError) as exc:
+            TrelloClient.resolve_label(client, "board123", "Urgent")
+
+        self.assertIn("Ask exactly one clarifying question", str(exc.exception))
+        self.assertIn("l1", str(exc.exception))
+        self.assertIn("l2", str(exc.exception))
 
 
 if __name__ == "__main__":
