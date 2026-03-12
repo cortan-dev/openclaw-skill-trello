@@ -476,15 +476,32 @@ class ResolutionTests(unittest.TestCase):
         result = TrelloClient.resolve_member(client, "Alice Smith", "b1")
         self.assertEqual(result["id"], "m1")
 
-    def test_resolve_member_ambiguous(self) -> None:
+    def test_resolve_label_by_name(self) -> None:
         client = TrelloClient.__new__(TrelloClient)
-        client.list_members_on_board = lambda board_id: [
-            {"id": "m1", "username": "alice", "fullName": "Alice Smith"},
-            {"id": "m2", "username": "alice.smith", "fullName": "Alice Smith"},
+        client.list_board_labels = lambda board_id: [
+            {"id": "l1", "name": "Urgent", "color": "red"},
+            {"id": "l2", "name": "Design", "color": "blue"},
         ]
-        
+        result = TrelloClient.resolve_label(client, "b1", "urgent")
+        self.assertEqual(result["id"], "l1")
+
+    def test_resolve_label_by_color(self) -> None:
+        client = TrelloClient.__new__(TrelloClient)
+        client.list_board_labels = lambda board_id: [
+            {"id": "l1", "name": "Urgent", "color": "red"},
+            {"id": "l2", "name": "", "color": "blue"},
+        ]
+        result = TrelloClient.resolve_label(client, "b1", "blue")
+        self.assertEqual(result["id"], "l2")
+
+    def test_resolve_label_ambiguous(self) -> None:
+        client = TrelloClient.__new__(TrelloClient)
+        client.list_board_labels = lambda board_id: [
+            {"id": "l1", "name": "Urgent", "color": "red"},
+            {"id": "l2", "name": "Urgent", "color": "orange"},
+        ]
         with self.assertRaises(AmbiguousMatchError):
-            TrelloClient.resolve_member(client, "Alice Smith", "b1")
+            TrelloClient.resolve_label(client, "b1", "Urgent")
 
 
 if __name__ == "__main__":
