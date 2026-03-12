@@ -136,6 +136,22 @@ class TrelloClientTests(unittest.TestCase):
         with self.assertRaises(TrelloError):
             client.resolve_card("Card")
 
+    def test_assign_member_to_card_uses_expected_endpoint(self) -> None:
+        client = TrelloClient()
+
+        with patch.object(client, "request", return_value={"id": "card123"}) as mock_request:
+            client.assign_member_to_card("card123", "member456")
+
+        mock_request.assert_called_once_with("POST", "/cards/card123/idMembers", params={"value": "member456"})
+
+    def test_unassign_member_from_card_uses_expected_endpoint(self) -> None:
+        client = TrelloClient()
+
+        with patch.object(client, "request", return_value={"id": "card123"}) as mock_request:
+            client.unassign_member_from_card("card123", "member456")
+
+        mock_request.assert_called_once_with("DELETE", "/cards/card123/idMembers/member456")
+
 
 class CliCompatibilityTests(unittest.TestCase):
     def test_list_create_preserves_legacy_pos_flag(self) -> None:

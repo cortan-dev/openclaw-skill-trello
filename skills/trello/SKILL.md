@@ -27,11 +27,11 @@ All scripts print JSON on success and exit non-zero on failure.
 
 - Prefer Trello IDs when the user provides them.
 - When the user gives human-friendly names, let `scripts/trello_api.py` resolve them.
-- If a board/list/card name matches multiple records, stop and ask exactly one clarifying question.
+- If a board/list/card/member/label name matches multiple records, stop and ask exactly one clarifying question.
 - For list name lookup, provide `--board` unless the user already gave a Trello list ID.
 - For card name lookup, provide `--list` when possible; otherwise provide `--board`.
 - v1 supports create, read/list, move, comment, attach-link, update title/description/dates, archive/unarchive, member assignment, and labels.
-- v1 does not support delete, checklists, webhooks, or automation.
+- v1 does not support delete, checklists, board invites/admin flows, webhooks, or automation.
 
 ## Commands
 
@@ -187,7 +187,7 @@ python3 scripts/card_unarchive.py --board "Launch Planning" --list "Doing" --car
 
 ### Members
 
-List members on a board:
+List board members:
 
 ```bash
 python3 scripts/members_list.py --board "Launch Planning"
@@ -196,13 +196,20 @@ python3 scripts/members_list.py --board "Launch Planning"
 Assign a member to a card:
 
 ```bash
-python3 scripts/card_assign.py --board "Launch Planning" --list "Doing" --card "Draft landing page copy" --member "@michael"
+python3 scripts/card_assign_member.py --board "Launch Planning" --list "Doing" --card "Draft homepage copy" --member "@michael"
 ```
 
 Unassign a member from a card:
 
 ```bash
-python3 scripts/card_unassign.py --board "Launch Planning" --list "Doing" --card "Draft landing page copy" --member "@michael"
+python3 scripts/card_unassign_member.py --board "Launch Planning" --list "Doing" --card "Draft homepage copy" --member "@michael"
+```
+
+Backward-compatible aliases:
+
+```bash
+python3 scripts/card_assign.py --board "Launch Planning" --list "Doing" --card "Draft homepage copy" --member "@michael"
+python3 scripts/card_unassign.py --board "Launch Planning" --list "Doing" --card "Draft homepage copy" --member "@michael"
 ```
 
 ## Action script map
@@ -230,8 +237,10 @@ python3 scripts/card_unassign.py --board "Launch Planning" --list "Doing" --card
 - `scripts/board_close.py` — close board
 - `scripts/board_reopen.py` — reopen board
 - `scripts/members_list.py` — list members on a board
-- `scripts/card_assign.py` — assign member to card
-- `scripts/card_unassign.py` — unassign member from card
+- `scripts/card_assign_member.py` — assign a member to a card
+- `scripts/card_unassign_member.py` — unassign a member from a card
+- `scripts/card_assign.py` — assign member to card (alias)
+- `scripts/card_unassign.py` — unassign member from card (alias)
 
 ## Example prompts
 
@@ -271,7 +280,9 @@ Run this sequence against a test workspace:
 5. `card_comment.py` to add a comment.
 6. `card_attach_link.py` to attach a URL.
 7. `board_get.py`, `lists_list.py`, `cards_list.py`, and `card_get.py` to verify retrieval.
-8. `card_update.py` to change title/description.
-9. `card_archive.py` to archive the card.
+8. `card_update.py` to change title/description/dates.
+9. `labels_list.py`, `label_create.py`, and `card_label.py` to verify label flows.
+10. `members_list.py`, `card_assign_member.py`, and `card_unassign_member.py` to verify member flows.
+11. `card_archive.py` to archive the card.
 
 If any name-based lookup is ambiguous, stop and ask one clarifying question instead of guessing.
