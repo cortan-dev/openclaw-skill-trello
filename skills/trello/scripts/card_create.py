@@ -1,24 +1,23 @@
 #!/usr/bin/env python3
+from __future__ import annotations
+
 import argparse
-from trello_api import TrelloClient, fail, print_json
+
+from trello_api import TrelloClient, main_guard, print_json
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--board", required=True)
-    parser.add_argument("--list", required=True)
+def run() -> None:
+    parser = argparse.ArgumentParser(description="Create a Trello card")
+    parser.add_argument("--list", required=True, help="List name or Trello list ID")
+    parser.add_argument("--board", help="Required when --list is a name")
     parser.add_argument("--name", required=True)
-    parser.add_argument("--desc", default=None)
+    parser.add_argument("--description")
     args = parser.parse_args()
 
     client = TrelloClient()
-    board = client.resolve_board(args.board)
-    trello_list = client.resolve_list(board["id"], args.list)
-    print_json(client.create_card(trello_list["id"], args.name, args.desc))
+    lst = client.resolve_list(args.list, args.board)
+    print_json(client.create_card(lst["id"], args.name, args.description))
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except Exception as exc:
-        fail(exc)
+    main_guard(run)

@@ -1,102 +1,176 @@
 ---
 name: trello
-description: General-purpose Trello operations via Trello's official REST API using TRELLO_API_KEY and TRELLO_TOKEN. Use when creating or managing Trello boards, lists, and cards from prompts, including: creating boards/lists/cards, moving cards between lists, commenting on cards, attaching links, listing boards/lists/cards, getting board/card details, updating card title/description, and archiving cards. Resolve human names to Trello IDs internally and fail safely with one clarifying question when a name matches multiple Trello objects.
+description: Manage Trello boards, lists, and cards via the Trello REST API. Use when the user wants to create boards/lists/cards, move cards, comment on cards, attach links, list boards/lists/cards, inspect board or card details, update card title/description, or archive cards. This skill is for general Trello operations, not board-specific workflow automation.
 ---
 
-# Trello Skill
+# Trello
 
-Use the bundled Python scripts for Trello v1 operations.
+Use the thin Python scripts in `scripts/` for all Trello work. They talk directly to Trello's official REST API and authenticate with these existing env vars:
 
-## Auth
+- `TRELLO_API_KEY`
+- `TRELLO_API_SECRET`
+- `TRELLO_TOKEN`
 
-Require these environment variables:
+Do not add workflow opinions. Do not invent local state. Resolve names to Trello IDs through the shared client.
 
-```bash
-export TRELLO_API_KEY=...
-export TRELLO_TOKEN=...
-```
+## Quick start
 
-Do not embed credentials in prompts, files, or command arguments.
-
-## Files
-
-- Shared client: `scripts/trello_api.py`
-- Actions:
-  - `scripts/board_create.py`
-  - `scripts/list_create.py`
-  - `scripts/card_create.py`
-  - `scripts/card_move.py`
-  - `scripts/card_comment.py`
-  - `scripts/card_attach_link.py`
-  - `scripts/boards_list.py`
-  - `scripts/lists_list.py`
-  - `scripts/cards_list.py`
-  - `scripts/board_get.py`
-  - `scripts/card_get.py`
-  - `scripts/card_update.py`
-  - `scripts/card_archive.py`
-
-## Operating rules
-
-- Prefer human names in prompts; let the scripts resolve Trello IDs.
-- If multiple boards, lists, or cards match a name, stop and ask one clarifying question.
-- Do not hard delete cards in v1.
-- Do not invent workflow logic, labels, due dates, members, checklists, or automation.
-- Return JSON output from scripts directly or summarize it briefly.
-
-## Examples
+Run scripts from the skill directory or from anywhere with the scripts directory on `PYTHONPATH`.
 
 ```bash
-python3 skills/trello/scripts/board_create.py --name "Launch Board" --description "v1 tracking"
-python3 skills/trello/scripts/list_create.py --board "Launch Board" --name "Todo"
-python3 skills/trello/scripts/list_create.py --board "Launch Board" --name "Doing"
-python3 skills/trello/scripts/card_create.py --board "Launch Board" --list "Todo" --name "Draft landing page" --desc "Collect final copy"
-python3 skills/trello/scripts/card_move.py --board "Launch Board" --card "Draft landing page" --to-list "Doing"
-python3 skills/trello/scripts/card_comment.py --board "Launch Board" --card "Draft landing page" --text "Started implementation"
-python3 skills/trello/scripts/card_attach_link.py --board "Launch Board" --card "Draft landing page" --url "https://example.com/spec" --name "Spec"
-python3 skills/trello/scripts/boards_list.py
-python3 skills/trello/scripts/lists_list.py --board "Launch Board"
-python3 skills/trello/scripts/cards_list.py --board "Launch Board"
-python3 skills/trello/scripts/card_get.py --board "Launch Board" --card "Draft landing page"
-python3 skills/trello/scripts/card_update.py --board "Launch Board" --card "Draft landing page" --name "Draft homepage" --desc "Copy approved"
-python3 skills/trello/scripts/card_archive.py --board "Launch Board" --card "Draft homepage"
+cd skills/trello
+python3 scripts/boards_list.py
 ```
 
-## Prompt patterns
+All scripts print JSON on success and exit non-zero on failure.
 
-Use prompts like:
+## Safety and resolution rules
 
-- "Create a Trello board named Launch Board."
-- "On Launch Board, create lists Todo and Doing."
-- "Create a card named Draft landing page in Todo on Launch Board with description Collect final copy."
-- "Move Draft landing page to Doing on Launch Board."
-- "Comment on Draft landing page on Launch Board: Started implementation."
-- "Attach https://example.com/spec to Draft landing page on Launch Board named Spec."
-- "List boards."
-- "List lists on Launch Board."
-- "List cards on Launch Board."
-- "Get details for card Draft landing page on Launch Board."
-- "Update Draft landing page on Launch Board to Draft homepage and set description to Copy approved."
-- "Archive Draft homepage on Launch Board."
+- Prefer Trello IDs when the user provides them.
+- When the user gives human-friendly names, let `scripts/trello_api.py` resolve them.
+- If a board/list/card name matches multiple records, stop and ask exactly one clarifying question.
+- For list name lookup, provide `--board` unless the user already gave a Trello list ID.
+- For card name lookup, provide `--list` when possible; otherwise provide `--board`.
+- v1 supports create, read/list, move, comment, attach-link, update title/description, and archive.
+- v1 does not support delete, labels, due dates, checklists, members, webhooks, or automation.
+
+## Commands
+
+### Boards
+
+Create a board:
+
+```bash
+python3 scripts/board_create.py --name "Launch Planning" --description "Q2 launch board"
+```
+
+List boards:
+
+```bash
+python3 scripts/boards_list.py
+```
+
+Get board details:
+
+```bash
+python3 scripts/board_get.py --board "Launch Planning"
+```
+
+### Lists
+
+Create a list on a board:
+
+```bash
+python3 scripts/list_create.py --board "Launch Planning" --name "Todo"
+```
+
+List lists on a board:
+
+```bash
+python3 scripts/lists_list.py --board "Launch Planning"
+```
+
+### Cards
+
+Create a card:
+
+```bash
+python3 scripts/card_create.py --board "Launch Planning" --list "Todo" --name "Draft homepage copy" --description "Need first pass"
+```
+
+List cards on a board:
+
+```bash
+python3 scripts/cards_list.py --board "Launch Planning"
+```
+
+List cards on a list:
+
+```bash
+python3 scripts/cards_list.py --board "Launch Planning" --list "Todo"
+```
+
+Get card details:
+
+```bash
+python3 scripts/card_get.py --board "Launch Planning" --list "Todo" --card "Draft homepage copy"
+```
+
+Move a card:
+
+```bash
+python3 scripts/card_move.py --source-board "Launch Planning" --source-list "Todo" --card "Draft homepage copy" --target-board "Launch Planning" --target-list "Doing"
+```
+
+Add a comment:
+
+```bash
+python3 scripts/card_comment.py --board "Launch Planning" --list "Doing" --card "Draft homepage copy" --text "First draft is in review."
+```
+
+Attach a link:
+
+```bash
+python3 scripts/card_attach_link.py --board "Launch Planning" --list "Doing" --card "Draft homepage copy" --url "https://example.com/spec" --name "Spec"
+```
+
+Update a card title and/or description:
+
+```bash
+python3 scripts/card_update.py --board "Launch Planning" --list "Doing" --card "Draft homepage copy" --name "Draft landing page copy" --description "First pass complete"
+```
+
+Archive a card:
+
+```bash
+python3 scripts/card_archive.py --board "Launch Planning" --list "Doing" --card "Draft landing page copy"
+```
+
+## Action script map
+
+- `scripts/trello_api.py` — shared Trello API client, auth, error handling, name resolution
+- `scripts/board_create.py` — create board
+- `scripts/list_create.py` — create list
+- `scripts/card_create.py` — create card
+- `scripts/card_move.py` — move card to another list
+- `scripts/card_comment.py` — add comment to card
+- `scripts/card_attach_link.py` — attach URL to card
+- `scripts/boards_list.py` — list boards
+- `scripts/lists_list.py` — list lists on a board
+- `scripts/cards_list.py` — list cards on a board or list
+- `scripts/board_get.py` — get board details
+- `scripts/card_get.py` — get card details, recent comments, attachments
+- `scripts/card_update.py` — update card title and/or description
+- `scripts/card_archive.py` — archive card
+
+## Example prompts
+
+- Create a Trello board named `Launch Planning`.
+- Add a `Todo` list to the `Launch Planning` board.
+- Create a card called `Draft homepage copy` in `Todo` on `Launch Planning`.
+- Move `Draft homepage copy` from `Todo` to `Doing`.
+- Add a comment to `Draft homepage copy`: `First draft is in review.`
+- Attach `https://example.com/spec` to `Draft homepage copy` and name it `Spec`.
+- List boards in Trello.
+- List lists on `Launch Planning`.
+- List cards on the `Todo` list in `Launch Planning`.
+- Show details for the `Launch Planning` board.
+- Show details for the `Draft homepage copy` card.
+- Rename `Draft homepage copy` to `Draft landing page copy` and update the description to `First pass complete`.
+- Archive `Draft landing page copy`.
 
 ## Smoke test
 
-Run this sequence after setting auth:
+Run this sequence against a test workspace:
 
-```bash
-python3 skills/trello/scripts/board_create.py --name "OpenClaw Trello Smoke"
-python3 skills/trello/scripts/list_create.py --board "OpenClaw Trello Smoke" --name "Inbox"
-python3 skills/trello/scripts/list_create.py --board "OpenClaw Trello Smoke" --name "Done"
-python3 skills/trello/scripts/card_create.py --board "OpenClaw Trello Smoke" --list "Inbox" --name "Smoke card" --desc "Created by smoke test"
-python3 skills/trello/scripts/card_move.py --board "OpenClaw Trello Smoke" --card "Smoke card" --to-list "Done"
-python3 skills/trello/scripts/card_comment.py --board "OpenClaw Trello Smoke" --card "Smoke card" --text "Smoke test comment"
-python3 skills/trello/scripts/card_attach_link.py --board "OpenClaw Trello Smoke" --card "Smoke card" --url "https://openclaw.ai" --name "OpenClaw"
-python3 skills/trello/scripts/boards_list.py
-python3 skills/trello/scripts/lists_list.py --board "OpenClaw Trello Smoke"
-python3 skills/trello/scripts/cards_list.py --board "OpenClaw Trello Smoke"
-python3 skills/trello/scripts/card_get.py --board "OpenClaw Trello Smoke" --card "Smoke card"
-python3 skills/trello/scripts/card_update.py --board "OpenClaw Trello Smoke" --card "Smoke card" --name "Smoke card updated" --desc "Updated by smoke test"
-python3 skills/trello/scripts/card_archive.py --board "OpenClaw Trello Smoke" --card "Smoke card updated"
-```
+1. `board_create.py` to create a temporary board.
+2. `list_create.py` twice to create `Todo` and `Doing`.
+3. `card_create.py` to create a test card in `Todo`.
+4. `card_move.py` to move it to `Doing`.
+5. `card_comment.py` to add a comment.
+6. `card_attach_link.py` to attach a URL.
+7. `board_get.py`, `lists_list.py`, `cards_list.py`, and `card_get.py` to verify retrieval.
+8. `card_update.py` to change title/description.
+9. `card_archive.py` to archive the card.
 
-Successful smoke test means every command exits cleanly and returns the expected Trello object JSON.
+If any name-based lookup is ambiguous, stop and ask one clarifying question instead of guessing.

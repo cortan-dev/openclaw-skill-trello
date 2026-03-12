@@ -1,32 +1,28 @@
 #!/usr/bin/env python3
+from __future__ import annotations
+
 import argparse
-from trello_api import TrelloClient, TrelloError, fail, print_json
+
+from trello_api import TrelloClient, TrelloError, main_guard, print_json
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--board")
-    parser.add_argument("--list")
+def run() -> None:
+    parser = argparse.ArgumentParser(description="List Trello cards on a board or list")
+    parser.add_argument("--board", help="Board name or Trello board ID")
+    parser.add_argument("--list", dest="list_name", help="List name or Trello list ID")
     args = parser.parse_args()
 
-    if not args.board and not args.list:
-        raise TrelloError("Provide --board or --list.")
-
     client = TrelloClient()
-    if args.list:
-        if not args.board:
-            raise TrelloError("When using --list by human name, also provide --board.")
-        board = client.resolve_board(args.board)
-        trello_list = client.resolve_list(board["id"], args.list)
-        print_json(client.get_cards_for_list(trello_list["id"]))
+    if args.list_name:
+        lst = client.resolve_list(args.list_name, args.board)
+        print_json(client.list_cards_on_list(lst["id"]))
         return
-
-    board = client.resolve_board(args.board)
-    print_json(client.get_cards_for_board(board["id"]))
+    if args.board:
+        board = client.resolve_board(args.board)
+        print_json(client.list_cards_on_board(board["id"]))
+        return
+    raise TrelloError("Provide --board or --list.")
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except Exception as exc:
-        fail(exc)
+    main_guard(run)

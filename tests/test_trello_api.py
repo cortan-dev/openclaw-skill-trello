@@ -1,4 +1,3 @@
-import io
 import json
 import os
 import sys
@@ -14,56 +13,29 @@ from trello_api import (  # noqa: E402
     NotFoundError,
     TrelloClient,
     TrelloError,
-    resolve_by_name_or_id,
+    looks_like_id,
 )
-
-
-class ResolveByNameOrIdTests(unittest.TestCase):
-    def setUp(self) -> None:
-        self.items = [
-            {"id": "1", "name": "Inbox"},
-            {"id": "2", "name": "Doing"},
-            {"id": "3", "name": "Done Later"},
-        ]
-
-    def test_resolves_exact_id(self) -> None:
-        result = resolve_by_name_or_id("list", "2", self.items)
-        self.assertEqual(result["name"], "Doing")
-
-    def test_resolves_exact_name(self) -> None:
-        result = resolve_by_name_or_id("list", "Inbox", self.items)
-        self.assertEqual(result["id"], "1")
-
-    def test_resolves_case_insensitive_name(self) -> None:
-        result = resolve_by_name_or_id("list", "doing", self.items)
-        self.assertEqual(result["id"], "2")
-
-    def test_resolves_single_contains_match(self) -> None:
-        result = resolve_by_name_or_id("list", "later", self.items)
-        self.assertEqual(result["id"], "3")
-
-    def test_raises_ambiguous_for_duplicate_names(self) -> None:
-        items = [{"id": "1", "name": "Inbox"}, {"id": "2", "name": "Inbox"}]
-        with self.assertRaises(AmbiguousMatchError):
-            resolve_by_name_or_id("list", "Inbox", items)
-
-    def test_raises_not_found(self) -> None:
-        with self.assertRaises(NotFoundError):
-            resolve_by_name_or_id("list", "Missing", self.items)
 
 
 class TrelloClientTests(unittest.TestCase):
     def setUp(self) -> None:
-        self.env = patch.dict(os.environ, {"TRELLO_API_KEY": "key123", "TRELLO_TOKEN": "tok456"})
+        self.env = patch.dict(
+            os.environ,
+            {
+                "TRELLO_API_KEY": "key123",
+                "TRELLO_TOKEN": "tok456",
+                "TRELLO_API_SECRET": "sec789",
+            },
+        )
         self.env.start()
         self.addCleanup(self.env.stop)
 
-    def test_requires_credentials(self) -> None:
-        with patch.dict(os.environ, {}, clear=True):
+    def test_requires_all_expected_env_vars(self) -> None:
+        with patch.dict(os.environ, {"TRELLO_API_KEY": "key123", "TRELLO_TOKEN": "tok456"}, clear=True):
             with self.assertRaises(TrelloError):
                 TrelloClient()
 
-    def test_get_builds_expected_url_and_parses_json(self) -> None:
+    def test_request_builds_expected_url_and_parses_json(self) -> None:
         client = TrelloClient()
 
         class FakeResponse:
@@ -77,7 +49,7 @@ class TrelloClientTests(unittest.TestCase):
                 return json.dumps({"ok": True}).encode("utf-8")
 
         with patch("urllib.request.urlopen", return_value=FakeResponse()) as mock_urlopen:
-            result = client.get("/members/me/boards", {"fields": "name"})
+            result = client.request("GET", "/members/me/boards", params={"fields": "name"})
 
         self.assertEqual(result, {"ok": True})
         request = mock_urlopen.call_args.args[0]
@@ -87,7 +59,7 @@ class TrelloClientTests(unittest.TestCase):
         self.assertIn("token=tok456", request.full_url)
         self.assertIn("fields=name", request.full_url)
 
-    def test_put_encodes_payload(self) -> None:
+    def test_put_uses_query_params(self) -> None:
         client = TrelloClient()
 
         class FakeResponse:
@@ -101,16 +73,49 @@ class TrelloClientTests(unittest.TestCase):
                 return b"{}"
 
         with patch("urllib.request.urlopen", return_value=FakeResponse()) as mock_urlopen:
-            client.update_card("card123", name="Renamed", closed=True)
+            client.update_card("card123", name="Renamed", desc="Updated")
 
         request = mock_urlopen.call_args.args[0]
         self.assertEqual(request.method, "PUT")
-        self.assertEqual(request.data, b"name=Renamed&closed=true")
+        self.assertIn("name=Renamed", request.full_url)
+        self.assertIn("desc=Updated", request.full_url)
+        self.assertIsNone(request.data)
 
     def test_resolve_card_requires_scope(self) -> None:
         client = TrelloClient()
         with self.assertRaises(TrelloError):
-            client.resolve_card(card_ref="Card")
+            client.resolve_card("Card")
+
+
+class ResolutionTests(unittest.TestCase):
+    def test_looks_like_id(self) -> None:
+        self.assertTrue(looks_like_id("a" * 24))
+        self.assertFalse(looks_like_id("Inbox"))
+
+    def test_resolve_board_exact_case_insensitive(self) -> None:
+        client = TrelloClient.__new__(TrelloClient)
+        client.list_boards = lambda: [
+            {"id": "a" * 24, "name": "Inbox"},
+            {"id": "b" * 24, "name": "Doing"},
+        ]
+        result = TrelloClient.resolve_board(client, "inbox")
+        self.assertEqual(result["id"], "a" * 24)
+
+    def test_resolve_board_ambiguous(self) -> None:
+        client = TrelloClient.__new__(TrelloClient)
+        client.list_boards = lambda: [
+            {"id": "a" * 24, "name": "Inbox"},
+            {"id": "b" * 24, "name": "Inbox"},
+        ]
+        with self.assertRaises(AmbiguousMatchError):
+            TrelloClient.resolve_board(client, "Inbox")
+
+    def test_resolve_list_not_found(self) -> None:
+        client = TrelloClient.__new__(TrelloClient)
+        client.resolve_board = lambda board: {"id": "a" * 24, "name": "Board"}
+        client.list_lists = lambda board_id: [{"id": "c" * 24, "name": "Todo"}]
+        with self.assertRaises(NotFoundError):
+            TrelloClient.resolve_list(client, "Done", "Board")
 
 
 if __name__ == "__main__":
