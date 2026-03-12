@@ -224,6 +224,74 @@ class ResolutionTests(unittest.TestCase):
         with self.assertRaises(NotFoundError):
             TrelloClient.resolve_list(client, "Done", "Board")
 
+    def test_resolve_list_by_id_fetches_board_context(self) -> None:
+        client = TrelloClient.__new__(TrelloClient)
+        client.request = lambda method, path, params=None: {
+            "id": "c" * 24,
+            "name": "Todo",
+            "idBoard": "a" * 24,
+            "closed": False,
+            "pos": 1,
+        }
+        client.get_board = lambda board_id: {"id": board_id, "name": "Project Board"}
+
+        result = TrelloClient.resolve_list(client, "c" * 24)
+
+        self.assertEqual(result["id"], "c" * 24)
+        self.assertEqual(result["board_id"], "a" * 24)
+        self.assertEqual(result["board_name"], "Project Board")
+
+    def test_resolve_card_by_id_fetches_board_and_list_context(self) -> None:
+        client = TrelloClient.__new__(TrelloClient)
+        client.get_card = lambda card_id: {
+            "id": card_id,
+            "name": "Ship it",
+            "idBoard": "a" * 24,
+            "idList": "b" * 24,
+        }
+        client.get_board = lambda board_id: {"id": board_id, "name": "Project Board"}
+        client.request = lambda method, path, params=None: {"name": "Doing"}
+
+        result = TrelloClient.resolve_card(client, "c" * 24)
+
+        self.assertEqual(result["id"], "c" * 24)
+        self.assertEqual(result["board_id"], "a" * 24)
+        self.assertEqual(result["board_name"], "Project Board")
+        self.assertEqual(result["list_id"], "b" * 24)
+        self.assertEqual(result["list_name"], "Doing")
+
+    def test_resolve_card_ambiguous_within_list_scope(self) -> None:
+        client = TrelloClient.__new__(TrelloClient)
+        client.resolve_list = lambda list_ref, board_ref=None: {"id": "b" * 24, "name": "Doing", "board_name": "Project Board"}
+        client.list_cards_on_list = lambda list_id: [
+            {"id": "c" * 24, "name": "Ship it", "idList": list_id},
+            {"id": "d" * 24, "name": "Ship it", "idList": list_id},
+        ]
+
+        with self.assertRaises(AmbiguousMatchError) as exc:
+            TrelloClient.resolve_card(client, "Ship it", list_ref="Doing")
+
+        self.assertIn("Project Board", str(exc.exception))
+        self.assertIn("Doing", str(exc.exception))
+
+    def test_resolve_card_ambiguous_within_board_scope_includes_list_context(self) -> None:
+        client = TrelloClient.__new__(TrelloClient)
+        client.resolve_board = lambda board_ref: {"id": "a" * 24, "name": "Project Board"}
+        client.list_lists = lambda board_id: [
+            {"id": "b" * 24, "name": "Todo"},
+            {"id": "c" * 24, "name": "Doing"},
+        ]
+        client.list_cards_on_board = lambda board_id: [
+            {"id": "d" * 24, "name": "Ship it", "idList": "b" * 24},
+            {"id": "e" * 24, "name": "Ship it", "idList": "c" * 24},
+        ]
+
+        with self.assertRaises(AmbiguousMatchError) as exc:
+            TrelloClient.resolve_card(client, "Ship it", board_ref="Project Board")
+
+        self.assertIn("Todo", str(exc.exception))
+        self.assertIn("Doing", str(exc.exception))
+
 
 if __name__ == "__main__":
     unittest.main()
