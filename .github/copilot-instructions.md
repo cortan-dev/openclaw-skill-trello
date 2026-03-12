@@ -1,19 +1,10 @@
 # Copilot instructions for this repo
 
-Review Python PRs for:
+Use `.github/review-instructions.md` as the canonical review policy for this repository.
 
-- correctness of Trello REST API paths, params, and HTTP methods
-- credential safety: only `TRELLO_API_KEY` and `TRELLO_TOKEN` from env vars; never hardcode or print secrets
-- safe ambiguity handling: if multiple boards/lists/cards match, fail clearly instead of guessing
-- readable, thin scripts over abstraction-heavy design
-- explicit error handling; no silent failures
-- v1 scope discipline: do not add deletes, checklists, labels, due dates, member assignment, webhooks, automation, or MCP
-- test coverage for resolver logic, request construction, and failure cases
-- CLI backward compatibility: preserve existing flags unless intentionally changed
+If this file and `.github/review-instructions.md` ever disagree, follow `.github/review-instructions.md`.
 
-Flag PRs that:
+## Compatibility note
 
-- broaden scope without a request
-- weaken ambiguity safeguards
-- introduce hidden network side effects in tests
-- reduce maintainability for small gains
+This file exists so GitHub Copilot can still pick up repository guidance when available.
+The repository's real source of truth for PR review is `.github/review-instructions.md`.
