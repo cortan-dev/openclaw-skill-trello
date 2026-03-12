@@ -22,6 +22,9 @@ import list_create  # noqa: E402
 import members_list # noqa: E402
 import card_assign # noqa: E402
 import card_unassign # noqa: E402
+import labels_list # noqa: E402
+import label_create # noqa: E402
+import card_label # noqa: E402
 from trello_api import (  # noqa: E402
     AmbiguousMatchError,
     NotFoundError,
@@ -281,6 +284,76 @@ class CliCompatibilityTests(unittest.TestCase):
         ), redirect_stdout(io.StringIO()):
             board_reopen.run()
         self.assertEqual(calls["reopen_board"], "board123")
+
+    def test_labels_list(self) -> None:
+        calls = {}
+
+        class FakeClient:
+            def resolve_board(self, board):
+                calls["resolve_board"] = board
+                return {"id": "board123"}
+
+            def list_board_labels(self, board_id):
+                calls["list_board_labels"] = board_id
+                return [{"id": "label123", "name": "Urgent"}]
+
+        with patch.object(labels_list, "TrelloClient", return_value=FakeClient()), patch.object(
+            sys, "argv", ["labels_list.py", "--board", "B"]
+        ), redirect_stdout(io.StringIO()):
+            labels_list.main()
+        self.assertEqual(calls["list_board_labels"], "board123")
+
+    def test_label_create(self) -> None:
+        calls = {}
+
+        class FakeClient:
+            def resolve_board(self, board):
+                calls["resolve_board"] = board
+                return {"id": "board123"}
+
+            def create_board_label(self, board_id, name, color):
+                calls["create_board_label"] = (board_id, name, color)
+                return {"id": "label123", "name": name, "color": color}
+
+        with patch.object(label_create, "TrelloClient", return_value=FakeClient()), patch.object(
+            sys, "argv", ["label_create.py", "--board", "B", "--name", "Urgent", "--color", "red"]
+        ), redirect_stdout(io.StringIO()):
+            label_create.main()
+        self.assertEqual(calls["create_board_label"], ("board123", "Urgent", "red"))
+
+    def test_card_label_add_remove(self) -> None:
+        calls = {}
+
+        class FakeClient:
+            def resolve_card(self, card, board_ref, list_ref):
+                calls["resolve_card"] = (card, board_ref, list_ref)
+                return {"id": "card123", "name": "Card", "board_id": "board123"}
+
+            def resolve_label(self, board_id, label_ref):
+                calls["resolve_label"] = (board_id, label_ref)
+                return {"id": "label123", "name": "Urgent"}
+
+            def add_label_to_card(self, card_id, label_id):
+                calls["add_label"] = (card_id, label_id)
+                return {}
+
+            def remove_label_from_card(self, card_id, label_id):
+                calls["remove_label"] = (card_id, label_id)
+                return {}
+
+        # Test add
+        with patch.object(card_label, "TrelloClient", return_value=FakeClient()), patch.object(
+            sys, "argv", ["card_label.py", "--card", "C", "--board", "B", "--label", "L"]
+        ), redirect_stdout(io.StringIO()):
+            card_label.main()
+        self.assertEqual(calls["add_label"], ("card123", "label123"))
+
+        # Test remove
+        with patch.object(card_label, "TrelloClient", return_value=FakeClient()), patch.object(
+            sys, "argv", ["card_label.py", "--card", "C", "--board", "B", "--label", "L", "--remove"]
+        ), redirect_stdout(io.StringIO()):
+            card_label.main()
+        self.assertEqual(calls["remove_label"], ("card123", "label123"))
 
 
 class ResolutionTests(unittest.TestCase):

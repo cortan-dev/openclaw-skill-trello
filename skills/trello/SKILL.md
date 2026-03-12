@@ -93,6 +93,18 @@ List lists on a board:
 python3 scripts/lists_list.py --board "Launch Planning"
 ```
 
+Archive a list:
+
+```bash
+python3 scripts/list_archive.py --board "Launch Planning" --list "Todo"
+```
+
+Unarchive a list:
+
+```bash
+python3 scripts/list_unarchive.py --board "Launch Planning" --list "Todo"
+```
+
 ### Cards
 
 Create a card:
@@ -167,6 +179,12 @@ Archive a card:
 python3 scripts/card_archive.py --board "Launch Planning" --list "Doing" --card "Draft landing page copy"
 ```
 
+Unarchive a card:
+
+```bash
+python3 scripts/card_unarchive.py --board "Launch Planning" --list "Doing" --card "Draft landing page copy"
+```
+
 ### Members
 
 List members on a board:
@@ -206,6 +224,11 @@ python3 scripts/card_unassign.py --board "Launch Planning" --list "Doing" --card
 - `scripts/label_create.py` — create a label on a board
 - `scripts/card_label.py` — add or remove a label on a card
 - `scripts/card_archive.py` — archive card
+- `scripts/card_unarchive.py` — unarchive card
+- `scripts/list_archive.py` — archive list
+- `scripts/list_unarchive.py` — unarchive list
+- `scripts/board_close.py` — close board
+- `scripts/board_reopen.py` — reopen board
 - `scripts/members_list.py` — list members on a board
 - `scripts/card_assign.py` — assign member to card
 - `scripts/card_unassign.py` — unassign member from card
@@ -231,6 +254,8 @@ python3 scripts/card_unassign.py --board "Launch Planning" --list "Doing" --card
 - Add the `Urgent` label to `Draft landing page copy`.
 - Remove the `Urgent` label from `Draft landing page copy`.
 - Archive `Draft landing page copy`.
+- Unarchive `Draft landing page copy`.
+- Close the `Launch Planning` board.
 - List members on the `Launch Planning` board.
 - Assign `@michael` to `Draft landing page copy` in `Doing` on `Launch Planning`.
 - Unassign `@michael` from `Draft landing page copy`.
