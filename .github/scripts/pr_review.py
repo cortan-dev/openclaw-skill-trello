@@ -14,9 +14,12 @@ MAX_PATCH_CHARS = 12000
 MAX_FILE_CONTENT_CHARS = 16000
 MAX_FILES = 25
 COMMENT_MARKER_PREFIX = "<!-- pr-review-automation"
-DEFAULT_API_BASE_URL = "https://api.openai.com/v1"
-DEFAULT_ASSISTANT_MODEL = "gpt-4.1-mini"
-DEFAULT_SPARTAN_MODEL = "gpt-4.1"
+DEFAULT_OPENAI_API_BASE_URL = "https://api.openai.com/v1"
+DEFAULT_ANTHROPIC_API_BASE_URL = "https://api.anthropic.com/v1"
+DEFAULT_OPENAI_ASSISTANT_MODEL = "gpt-4.1-mini"
+DEFAULT_OPENAI_SPARTAN_MODEL = "gpt-4.1"
+DEFAULT_ANTHROPIC_ASSISTANT_MODEL = "claude-3-5-haiku-latest"
+DEFAULT_ANTHROPIC_SPARTAN_MODEL = "claude-3-7-sonnet-latest"
 TRUSTED_AUTHOR_ASSOCIATIONS = {"OWNER", "MEMBER", "COLLABORATOR"}
 
 
@@ -127,6 +130,11 @@ class GitHubClient:
 
 
 class LLMClient:
+    def review(self, model: str, system_prompt: str, user_prompt: str) -> str:
+        raise NotImplementedError
+
+
+class OpenAICompatibleClient(LLMClient):
     def __init__(self, api_key: str, base_url: str) -> None:
         self.api_key = api_key
         self.base_url = base_url.rstrip("/")
@@ -156,11 +164,55 @@ class LLMClient:
                 raw = json.loads(resp.read().decode("utf-8"))
         except urllib.error.HTTPError as exc:
             detail = exc.read().decode("utf-8", errors="replace")
-            raise ReviewError(f"LLM API {exc.code}: {detail}") from exc
+            raise ReviewError(f"OpenAI-compatible LLM API {exc.code}: {detail}") from exc
         try:
             return raw["choices"][0]["message"]["content"].strip()
         except (KeyError, IndexError, TypeError) as exc:
-            raise ReviewError(f"Unexpected LLM response shape: {json.dumps(raw)[:2000]}") from exc
+            raise ReviewError(f"Unexpected OpenAI-compatible response shape: {json.dumps(raw)[:2000]}") from exc
+
+
+class AnthropicClient(LLMClient):
+    def __init__(self, api_key: str, base_url: str) -> None:
+        self.api_key = api_key
+        self.base_url = base_url.rstrip("/")
+
+    def review(self, model: str, system_prompt: str, user_prompt: str) -> str:
+        payload = {
+            "model": model,
+            "max_tokens": 2000,
+            "temperature": 0.1,
+            "system": system_prompt,
+            "messages": [
+                {"role": "user", "content": user_prompt},
+            ],
+        }
+        body = json.dumps(payload).encode("utf-8")
+        req = urllib.request.Request(
+            f"{self.base_url}/messages",
+            data=body,
+            method="POST",
+            headers={
+                "x-api-key": self.api_key,
+                "anthropic-version": "2023-06-01",
+                "Content-Type": "application/json",
+                "User-Agent": "openclaw-pr-review-automation",
+            },
+        )
+        try:
+            with urllib.request.urlopen(req) as resp:
+                raw = json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", errors="replace")
+            raise ReviewError(f"Anthropic API {exc.code}: {detail}") from exc
+        try:
+            parts = raw["content"]
+            text_parts = [part.get("text", "") for part in parts if part.get("type") == "text"]
+            content = "\n".join(part for part in text_parts if part).strip()
+            if not content:
+                raise ReviewError(f"Anthropic response had no text content: {json.dumps(raw)[:2000]}")
+            return content
+        except (KeyError, IndexError, TypeError) as exc:
+            raise ReviewError(f"Unexpected Anthropic response shape: {json.dumps(raw)[:2000]}") from exc
 
 
 def load_event() -> Dict[str, Any]:
@@ -355,6 +407,34 @@ def find_existing_comment(comments: List[Dict[str, Any]], head_sha: str) -> Opti
     return None
 
 
+def build_llm_client() -> tuple[LLMClient, str, str]:
+    anthropic_api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if anthropic_api_key:
+        return (
+            AnthropicClient(
+                anthropic_api_key,
+                os.environ.get("ANTHROPIC_BASE_URL", DEFAULT_ANTHROPIC_API_BASE_URL),
+            ),
+            os.environ.get("ASSISTANT_REVIEW_MODEL", DEFAULT_ANTHROPIC_ASSISTANT_MODEL),
+            os.environ.get("SPARTAN_REVIEW_MODEL", DEFAULT_ANTHROPIC_SPARTAN_MODEL),
+        )
+
+    openai_api_key = os.environ.get("OPENAI_API_KEY")
+    if openai_api_key:
+        return (
+            OpenAICompatibleClient(
+                openai_api_key,
+                os.environ.get("OPENAI_BASE_URL", DEFAULT_OPENAI_API_BASE_URL),
+            ),
+            os.environ.get("ASSISTANT_REVIEW_MODEL", DEFAULT_OPENAI_ASSISTANT_MODEL),
+            os.environ.get("SPARTAN_REVIEW_MODEL", DEFAULT_OPENAI_SPARTAN_MODEL),
+        )
+
+    raise ReviewError(
+        "No LLM credentials configured. Set ANTHROPIC_API_KEY for native Anthropic support or OPENAI_API_KEY for an OpenAI-compatible endpoint."
+    )
+
+
 def main() -> int:
     event = load_event()
     pr = parse_context(event)
@@ -369,11 +449,6 @@ def main() -> int:
     if not github_token:
         raise ReviewError("GITHUB_TOKEN is required")
 
-    llm_api_key = os.environ.get("OPENAI_API_KEY")
-    if not llm_api_key:
-        print("OPENAI_API_KEY is not configured; skipping advisory PR review.")
-        return 0
-
     gh = GitHubClient(github_token, pr.owner, pr.repo)
     comments = gh.list_issue_comments(pr.number)
     existing_comment = find_existing_comment(comments, pr.head_sha)
@@ -382,15 +457,15 @@ def main() -> int:
         return 0
 
     review_input = build_review_input(gh, pr)
-    llm = LLMClient(llm_api_key, os.environ.get("OPENAI_BASE_URL", DEFAULT_API_BASE_URL))
+    llm, assistant_model, spartan_model = build_llm_client()
 
     assistant_review = llm.review(
-        os.environ.get("ASSISTANT_REVIEW_MODEL", DEFAULT_ASSISTANT_MODEL),
+        assistant_model,
         build_system_prompt("Assistant pass", "General engineering assistant reviewer"),
         review_input,
     )
     spartan_review = llm.review(
-        os.environ.get("SPARTAN_REVIEW_MODEL", DEFAULT_SPARTAN_MODEL),
+        spartan_model,
         build_system_prompt("Spartan engineering pass", "Senior Python engineer named Spartan. Prioritize correctness, architecture, failure modes, compatibility, and maintainability."),
         review_input,
     )
