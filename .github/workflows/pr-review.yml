@@ -42,7 +42,12 @@ jobs:
         with:
           python-version: '3.12'
 
+      - name: Explain skipped review configuration
+        if: ${{ secrets.OPENAI_API_KEY == '' }}
+        run: echo "OPENAI_API_KEY is not configured; skipping advisory PR review."
+
       - name: Run automated PR review
+        if: ${{ secrets.OPENAI_API_KEY != '' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}

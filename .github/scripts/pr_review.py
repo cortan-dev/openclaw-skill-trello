@@ -8,7 +8,7 @@ import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 MAX_PATCH_CHARS = 12000
 MAX_FILE_CONTENT_CHARS = 16000
@@ -17,6 +17,7 @@ COMMENT_MARKER_PREFIX = "<!-- pr-review-automation"
 DEFAULT_API_BASE_URL = "https://api.openai.com/v1"
 DEFAULT_ASSISTANT_MODEL = "gpt-4.1-mini"
 DEFAULT_SPARTAN_MODEL = "gpt-4.1"
+TRUSTED_AUTHOR_ASSOCIATIONS = {"OWNER", "MEMBER", "COLLABORATOR"}
 
 
 class ReviewError(Exception):
@@ -37,6 +38,7 @@ class PullRequestContext:
     is_draft: bool
     trigger: str
     manual_rerun: bool
+    manual_rerun_author: Optional[str] = None
 
 
 class GitHubClient:
@@ -189,6 +191,12 @@ def parse_context(event: Dict[str, Any]) -> Optional[PullRequestContext]:
         comment = event.get("comment") or {}
         if comment.get("body", "").strip() != "/review":
             return None
+        author_association = (comment.get("author_association") or "").upper()
+        if author_association not in TRUSTED_AUTHOR_ASSOCIATIONS:
+            print(
+                f"Ignoring /review from untrusted author_association={author_association or '<missing>'}"
+            )
+            return None
         gh = GitHubClient(os.environ["GITHUB_TOKEN"], owner, repo)
         pr = gh.get_pull_request(int(issue["number"]))
         manual_rerun = True
@@ -220,6 +228,7 @@ def parse_context(event: Dict[str, Any]) -> Optional[PullRequestContext]:
         is_draft=bool(pr.get("draft")),
         trigger=trigger,
         manual_rerun=manual_rerun,
+        manual_rerun_author=((event.get("comment") or {}).get("user") or {}).get("login"),
     )
 
 
@@ -362,7 +371,8 @@ def main() -> int:
 
     llm_api_key = os.environ.get("OPENAI_API_KEY")
     if not llm_api_key:
-        raise ReviewError("OPENAI_API_KEY is required for automated reviews")
+        print("OPENAI_API_KEY is not configured; skipping advisory PR review.")
+        return 0
 
     gh = GitHubClient(github_token, pr.owner, pr.repo)
     comments = gh.list_issue_comments(pr.number)

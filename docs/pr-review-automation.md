@@ -29,7 +29,7 @@ The workflow runs on:
 - `pull_request` `synchronize`
 - `pull_request` `reopened`
 - `pull_request` `ready_for_review`
-- `issue_comment` with exact body `/review` on a PR
+- `issue_comment` with exact body `/review` on a PR from a trusted repo actor (`OWNER`, `MEMBER`, or `COLLABORATOR`)
 - `workflow_dispatch` with a PR number
 
 Draft PRs are skipped until they are marked ready for review, unless `/review` or `workflow_dispatch` is used.
@@ -40,13 +40,16 @@ The workflow writes a hidden marker with the PR head SHA into its comment.
 
 - If the same SHA is seen again from normal PR events, it skips posting a duplicate comment.
 - If `/review` or `workflow_dispatch` is used for the same SHA, it updates the existing comment for that SHA.
+- Untrusted `/review` comments are ignored.
 - When a new commit is pushed, the head SHA changes and a fresh review comment is posted.
 
 ## Required configuration
 
-Set this repository secret:
+Set this repository secret to enable AI review generation:
 
 - `OPENAI_API_KEY`
+
+If the secret is not configured, the workflow exits cleanly and logs that advisory review was skipped.
 
 Optional repository variables:
 
