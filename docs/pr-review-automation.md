@@ -51,19 +51,22 @@ Set at least one LLM credential as a repository secret to enable AI review gener
 
 | Secret / Variable | Value |
 |---|---|
-| `ANTHROPIC_API_KEY` (secret) | Anthropic API key — used for the Cortan assistant pass |
-| `OPENAI_API_KEY` (secret) | Gemini API key — used for the Spartan engineering pass |
-| `OPENAI_BASE_URL` (variable) | `https://generativelanguage.googleapis.com/v1beta/openai/` |
+| `ANTHROPIC_API_KEY` (secret) | Anthropic API key — Cortan assistant pass |
+| `GEMINI_API_KEY` (secret) | Google Gemini API key — Spartan engineering pass |
 | `ASSISTANT_REVIEW_MODEL` (variable) | `claude-sonnet-4-5` (default) |
 | `SPARTAN_REVIEW_MODEL` (variable) | `gemini-2.0-flash` (default) |
 
 ### Single provider fallback
 
-If only one key is set, both passes use that provider.
+If only one key is set, both passes use that provider and its default models.
 
-### OpenAI-only setup
+### Anthropic-only setup
 
-Set `OPENAI_API_KEY` and optionally `OPENAI_BASE_URL` (defaults to `https://api.openai.com/v1`).
+Set only `ANTHROPIC_API_KEY`. Both passes use Claude.
+
+### Gemini-only setup
+
+Set only `GEMINI_API_KEY`. Both passes use Gemini.
 
 If no credentials are configured, the workflow exits cleanly and logs that advisory review was skipped.
 

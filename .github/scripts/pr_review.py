@@ -14,12 +14,12 @@ MAX_PATCH_CHARS = 12000
 MAX_FILE_CONTENT_CHARS = 16000
 MAX_FILES = 25
 COMMENT_MARKER_PREFIX = "<!-- pr-review-automation"
-DEFAULT_OPENAI_API_BASE_URL = "https://api.openai.com/v1"
 DEFAULT_ANTHROPIC_API_BASE_URL = "https://api.anthropic.com/v1"
+DEFAULT_GEMINI_API_BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
 DEFAULT_ANTHROPIC_ASSISTANT_MODEL = "claude-sonnet-4-5"
 DEFAULT_ANTHROPIC_SPARTAN_MODEL = "claude-sonnet-4-5"
-DEFAULT_GEMINI_SPARTAN_MODEL = "gemini-2.0-flash"
 DEFAULT_GEMINI_ASSISTANT_MODEL = "gemini-2.0-flash"
+DEFAULT_GEMINI_SPARTAN_MODEL = "gemini-2.0-flash"
 TRUSTED_AUTHOR_ASSOCIATIONS = {"OWNER", "MEMBER", "COLLABORATOR"}
 
 
@@ -134,43 +134,6 @@ class LLMClient:
         raise NotImplementedError
 
 
-class OpenAICompatibleClient(LLMClient):
-    def __init__(self, api_key: str, base_url: str) -> None:
-        self.api_key = api_key
-        self.base_url = base_url.rstrip("/")
-
-    def review(self, model: str, system_prompt: str, user_prompt: str) -> str:
-        payload = {
-            "model": model,
-            "temperature": 0.1,
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-        }
-        body = json.dumps(payload).encode("utf-8")
-        req = urllib.request.Request(
-            f"{self.base_url}/chat/completions",
-            data=body,
-            method="POST",
-            headers={
-                "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json",
-                "User-Agent": "openclaw-pr-review-automation",
-            },
-        )
-        try:
-            with urllib.request.urlopen(req) as resp:
-                raw = json.loads(resp.read().decode("utf-8"))
-        except urllib.error.HTTPError as exc:
-            detail = exc.read().decode("utf-8", errors="replace")
-            raise ReviewError(f"OpenAI-compatible LLM API {exc.code}: {detail}") from exc
-        try:
-            return raw["choices"][0]["message"]["content"].strip()
-        except (KeyError, IndexError, TypeError) as exc:
-            raise ReviewError(f"Unexpected OpenAI-compatible response shape: {json.dumps(raw)[:2000]}") from exc
-
-
 class AnthropicClient(LLMClient):
     def __init__(self, api_key: str, base_url: str) -> None:
         self.api_key = api_key
@@ -213,6 +176,37 @@ class AnthropicClient(LLMClient):
             return content
         except (KeyError, IndexError, TypeError) as exc:
             raise ReviewError(f"Unexpected Anthropic response shape: {json.dumps(raw)[:2000]}") from exc
+
+
+class GeminiClient(LLMClient):
+    def __init__(self, api_key: str, base_url: str = "https://generativelanguage.googleapis.com/v1beta") -> None:
+        self.api_key = api_key
+        self.base_url = base_url.rstrip("/")
+
+    def review(self, model: str, system_prompt: str, user_prompt: str) -> str:
+        payload = {
+            "system_instruction": {"parts": [{"text": system_prompt}]},
+            "contents": [{"role": "user", "parts": [{"text": user_prompt}]}],
+            "generationConfig": {"temperature": 0.1, "maxOutputTokens": 2000},
+        }
+        body = json.dumps(payload).encode("utf-8")
+        url = f"{self.base_url}/models/{model}:generateContent?key={self.api_key}"
+        req = urllib.request.Request(
+            url,
+            data=body,
+            method="POST",
+            headers={"Content-Type": "application/json", "User-Agent": "openclaw-pr-review-automation"},
+        )
+        try:
+            with urllib.request.urlopen(req) as resp:
+                raw = json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", errors="replace")
+            raise ReviewError(f"Gemini API {exc.code}: {detail}") from exc
+        try:
+            return raw["candidates"][0]["content"]["parts"][0]["text"].strip()
+        except (KeyError, IndexError, TypeError) as exc:
+            raise ReviewError(f"Unexpected Gemini response shape: {json.dumps(raw)[:2000]}") from exc
 
 
 def load_event() -> Dict[str, Any]:
@@ -417,20 +411,20 @@ def get_env_or_default(name: str, default: str) -> str:
 
 def build_llm_client() -> Tuple[LLMClient, str, LLMClient, str]:
     anthropic_api_key = os.environ.get("ANTHROPIC_API_KEY")
-    openai_api_key = os.environ.get("OPENAI_API_KEY")
+    gemini_api_key = os.environ.get("GEMINI_API_KEY")
 
-    if not anthropic_api_key and not openai_api_key:
+    if not anthropic_api_key and not gemini_api_key:
         raise ReviewError(
-            "No LLM credentials configured. Set ANTHROPIC_API_KEY for Anthropic or OPENAI_API_KEY for Gemini/OpenAI-compatible."
+            "No LLM credentials configured. Set ANTHROPIC_API_KEY for the assistant pass or GEMINI_API_KEY for the Spartan pass."
         )
 
-    if anthropic_api_key and openai_api_key:
+    if anthropic_api_key and gemini_api_key:
         assistant_model = get_env_or_default("ASSISTANT_REVIEW_MODEL", DEFAULT_ANTHROPIC_ASSISTANT_MODEL)
         spartan_model = get_env_or_default("SPARTAN_REVIEW_MODEL", DEFAULT_GEMINI_SPARTAN_MODEL)
         return (
             AnthropicClient(anthropic_api_key, get_env_or_default("ANTHROPIC_BASE_URL", DEFAULT_ANTHROPIC_API_BASE_URL)),
             assistant_model,
-            OpenAICompatibleClient(openai_api_key, get_env_or_default("OPENAI_BASE_URL", DEFAULT_OPENAI_API_BASE_URL)),
+            GeminiClient(gemini_api_key, get_env_or_default("GEMINI_BASE_URL", DEFAULT_GEMINI_API_BASE_URL)),
             spartan_model,
         )
 
@@ -440,7 +434,7 @@ def build_llm_client() -> Tuple[LLMClient, str, LLMClient, str]:
         return client, model, client, get_env_or_default("SPARTAN_REVIEW_MODEL", DEFAULT_ANTHROPIC_SPARTAN_MODEL)
 
     model = get_env_or_default("SPARTAN_REVIEW_MODEL", DEFAULT_GEMINI_SPARTAN_MODEL)
-    client = OpenAICompatibleClient(openai_api_key, get_env_or_default("OPENAI_BASE_URL", DEFAULT_OPENAI_API_BASE_URL))
+    client = GeminiClient(gemini_api_key, get_env_or_default("GEMINI_BASE_URL", DEFAULT_GEMINI_API_BASE_URL))
     return client, get_env_or_default("ASSISTANT_REVIEW_MODEL", DEFAULT_GEMINI_ASSISTANT_MODEL), client, model
 
 
