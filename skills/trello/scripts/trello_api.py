@@ -175,6 +175,22 @@ class TrelloClient:
     def list_members_on_board(self, board_id: str) -> List[Dict[str, Any]]:
         return self.request("GET", f"/boards/{board_id}/members", params={"fields": "fullName,username,id"})
 
+    def add_member_to_board(self, board_id: str, email_or_username: str, role: str = "normal") -> Dict[str, Any]:
+        # Trello API PUT /1/boards/{id}/members allows adding by email or username
+        # If it's an email, it's passed as 'email'. If it's a username, it's 'idMember' (which also takes usernames)
+        params = {"type": role}
+        if "@" in email_or_username:
+            params["email"] = email_or_username
+            return self.request("PUT", f"/boards/{board_id}/members", params=params)
+        else:
+            return self.request("PUT", f"/boards/{board_id}/members/{email_or_username}", params=params)
+
+    def remove_member_from_board(self, board_id: str, member_id: str) -> Dict[str, Any]:
+        return self.request("DELETE", f"/boards/{board_id}/members/{member_id}")
+
+    def update_member_role_on_board(self, board_id: str, member_id: str, role: str) -> Dict[str, Any]:
+        return self.request("PUT", f"/boards/{board_id}/members/{member_id}", params={"type": role})
+
     def assign_member_to_card(self, card_id: str, member_id: str) -> Dict[str, Any]:
         return self.request("POST", f"/cards/{card_id}/idMembers", params={"value": member_id})
 
