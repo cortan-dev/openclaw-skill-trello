@@ -8,7 +8,7 @@ import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 MAX_PATCH_CHARS = 12000
 MAX_FILE_CONTENT_CHARS = 16000
@@ -16,10 +16,8 @@ MAX_FILES = 25
 COMMENT_MARKER_PREFIX = "<!-- pr-review-automation"
 DEFAULT_OPENAI_API_BASE_URL = "https://api.openai.com/v1"
 DEFAULT_ANTHROPIC_API_BASE_URL = "https://api.anthropic.com/v1"
-DEFAULT_OPENAI_ASSISTANT_MODEL = "gpt-4.1-mini"
-DEFAULT_OPENAI_SPARTAN_MODEL = "gpt-4.1"
-DEFAULT_ANTHROPIC_ASSISTANT_MODEL = "claude-sonnet-4-5"
-DEFAULT_ANTHROPIC_SPARTAN_MODEL = "claude-sonnet-4-5"
+DEFAULT_ASSISTANT_MODEL = "claude-sonnet-4-5"
+DEFAULT_SPARTAN_MODEL = "gemini-2.5-flash"
 TRUSTED_AUTHOR_ASSOCIATIONS = {"OWNER", "MEMBER", "COLLABORATOR"}
 
 
@@ -381,7 +379,7 @@ def build_system_prompt(pass_name: str, persona: str) -> str:
     )
 
 
-def build_comment_body(pr: PullRequestContext, assistant_review: str, spartan_review: str) -> str:
+def build_comment_body(pr: PullRequestContext, assistant_review: str, assistant_model: str, spartan_review: str, spartan_model: str) -> str:
     marker = f"{COMMENT_MARKER_PREFIX}:sha={pr.head_sha};trigger={pr.trigger} -->"
     return "\n".join(
         [
@@ -389,10 +387,10 @@ def build_comment_body(pr: PullRequestContext, assistant_review: str, spartan_re
             f"# Automated PR review for `{pr.head_sha[:12]}`",
             "Advisory only. This does not block merges.",
             "",
-            "## Assistant pass",
+            f"## Assistant pass ({assistant_model})",
             assistant_review.strip(),
             "",
-            "## Spartan engineering pass",
+            f"## Spartan engineering pass ({spartan_model})",
             spartan_review.strip(),
         ]
     )
@@ -415,32 +413,39 @@ def get_env_or_default(name: str, default: str) -> str:
     return value or default
 
 
-def build_llm_client() -> tuple[LLMClient, str, str]:
+def build_llm_client() -> Tuple[LLMClient, str, LLMClient, str]:
     anthropic_api_key = os.environ.get("ANTHROPIC_API_KEY")
-    if anthropic_api_key:
-        return (
-            AnthropicClient(
-                anthropic_api_key,
-                get_env_or_default("ANTHROPIC_BASE_URL", DEFAULT_ANTHROPIC_API_BASE_URL),
-            ),
-            get_env_or_default("ASSISTANT_REVIEW_MODEL", DEFAULT_ANTHROPIC_ASSISTANT_MODEL),
-            get_env_or_default("SPARTAN_REVIEW_MODEL", DEFAULT_ANTHROPIC_SPARTAN_MODEL),
-        )
-
     openai_api_key = os.environ.get("OPENAI_API_KEY")
-    if openai_api_key:
-        return (
-            OpenAICompatibleClient(
-                openai_api_key,
-                get_env_or_default("OPENAI_BASE_URL", DEFAULT_OPENAI_API_BASE_URL),
-            ),
-            get_env_or_default("ASSISTANT_REVIEW_MODEL", DEFAULT_OPENAI_ASSISTANT_MODEL),
-            get_env_or_default("SPARTAN_REVIEW_MODEL", DEFAULT_OPENAI_SPARTAN_MODEL),
+
+    if not anthropic_api_key and not openai_api_key:
+        raise ReviewError(
+            "No LLM credentials configured. Set ANTHROPIC_API_KEY for native Anthropic support or OPENAI_API_KEY for an OpenAI-compatible endpoint."
         )
 
-    raise ReviewError(
-        "No LLM credentials configured. Set ANTHROPIC_API_KEY for native Anthropic support or OPENAI_API_KEY for an OpenAI-compatible endpoint."
-    )
+    assistant_model = get_env_or_default("ASSISTANT_REVIEW_MODEL", DEFAULT_ASSISTANT_MODEL)
+    spartan_model = get_env_or_default("SPARTAN_REVIEW_MODEL", DEFAULT_SPARTAN_MODEL)
+
+    anthropic_client = None
+    if anthropic_api_key:
+        anthropic_client = AnthropicClient(
+            anthropic_api_key,
+            get_env_or_default("ANTHROPIC_BASE_URL", DEFAULT_ANTHROPIC_API_BASE_URL),
+        )
+
+    openai_client = None
+    if openai_api_key:
+        openai_client = OpenAICompatibleClient(
+            openai_api_key,
+            get_env_or_default("OPENAI_BASE_URL", DEFAULT_OPENAI_API_BASE_URL),
+        )
+
+    if anthropic_api_key and openai_api_key:
+        return anthropic_client, assistant_model, openai_client, spartan_model
+
+    if anthropic_api_key:
+        return anthropic_client, assistant_model, anthropic_client, spartan_model
+
+    return openai_client, assistant_model, openai_client, spartan_model
 
 
 def main() -> int:
@@ -465,20 +470,20 @@ def main() -> int:
         return 0
 
     review_input = build_review_input(gh, pr)
-    llm, assistant_model, spartan_model = build_llm_client()
+    assistant_client, assistant_model, spartan_client, spartan_model = build_llm_client()
 
-    assistant_review = llm.review(
+    assistant_review = assistant_client.review(
         assistant_model,
         build_system_prompt("Assistant pass", "General engineering assistant reviewer"),
         review_input,
     )
-    spartan_review = llm.review(
+    spartan_review = spartan_client.review(
         spartan_model,
         build_system_prompt("Spartan engineering pass", "Senior Python engineer named Spartan. Prioritize correctness, architecture, failure modes, compatibility, and maintainability."),
         review_input,
     )
 
-    body = build_comment_body(pr, assistant_review, spartan_review)
+    body = build_comment_body(pr, assistant_review, assistant_model, spartan_review, spartan_model)
     if existing_comment:
         gh.update_issue_comment(existing_comment["id"], body)
         print(f"Updated existing review comment {existing_comment['id']} for PR #{pr.number}")

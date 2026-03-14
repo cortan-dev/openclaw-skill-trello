@@ -45,19 +45,27 @@ The workflow writes a hidden marker with the PR head SHA into its comment.
 
 ## Required configuration
 
-Set this repository secret to enable AI review generation:
+Set at least one LLM credential as a repository secret to enable AI review generation.
 
-- `OPENAI_API_KEY`
+### Recommended setup (dual provider)
 
-If the secret is not configured, the workflow exits cleanly and logs that advisory review was skipped.
+| Secret / Variable | Value |
+|---|---|
+| `ANTHROPIC_API_KEY` (secret) | Anthropic API key — used for the Cortan assistant pass |
+| `OPENAI_API_KEY` (secret) | Gemini API key — used for the Spartan engineering pass |
+| `OPENAI_BASE_URL` (variable) | `https://generativelanguage.googleapis.com/v1beta/openai/` |
+| `ASSISTANT_REVIEW_MODEL` (variable) | `claude-sonnet-4-5` (default) |
+| `SPARTAN_REVIEW_MODEL` (variable) | `gemini-2.5-flash` (default) |
 
-Optional repository variables:
+### Single provider fallback
 
-- `ASSISTANT_REVIEW_MODEL` default: `gpt-4.1-mini`
-- `SPARTAN_REVIEW_MODEL` default: `gpt-4.1`
-- `OPENAI_BASE_URL` default: `https://api.openai.com/v1`
+If only one key is set, both passes use that provider.
 
-If you use an OpenAI-compatible provider, set both `OPENAI_API_KEY` and `OPENAI_BASE_URL`.
+### OpenAI-only setup
+
+Set `OPENAI_API_KEY` and optionally `OPENAI_BASE_URL` (defaults to `https://api.openai.com/v1`).
+
+If no credentials are configured, the workflow exits cleanly and logs that advisory review was skipped.
 
 ## Files
 
