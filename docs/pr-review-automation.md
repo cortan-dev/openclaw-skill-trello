@@ -55,7 +55,7 @@ Set at least one LLM credential as a repository secret to enable AI review gener
 | `OPENAI_API_KEY` (secret) | Gemini API key — used for the Spartan engineering pass |
 | `OPENAI_BASE_URL` (variable) | `https://generativelanguage.googleapis.com/v1beta/openai/` |
 | `ASSISTANT_REVIEW_MODEL` (variable) | `claude-sonnet-4-5` (default) |
-| `SPARTAN_REVIEW_MODEL` (variable) | `gemini-2.5-flash` (default) |
+| `SPARTAN_REVIEW_MODEL` (variable) | `gemini-2.0-flash` (default) |
 
 ### Single provider fallback
 

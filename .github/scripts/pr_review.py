@@ -16,8 +16,10 @@ MAX_FILES = 25
 COMMENT_MARKER_PREFIX = "<!-- pr-review-automation"
 DEFAULT_OPENAI_API_BASE_URL = "https://api.openai.com/v1"
 DEFAULT_ANTHROPIC_API_BASE_URL = "https://api.anthropic.com/v1"
-DEFAULT_ASSISTANT_MODEL = "claude-sonnet-4-5"
-DEFAULT_SPARTAN_MODEL = "gemini-2.5-flash"
+DEFAULT_ANTHROPIC_ASSISTANT_MODEL = "claude-sonnet-4-5"
+DEFAULT_ANTHROPIC_SPARTAN_MODEL = "claude-sonnet-4-5"
+DEFAULT_GEMINI_SPARTAN_MODEL = "gemini-2.0-flash"
+DEFAULT_GEMINI_ASSISTANT_MODEL = "gemini-2.0-flash"
 TRUSTED_AUTHOR_ASSOCIATIONS = {"OWNER", "MEMBER", "COLLABORATOR"}
 
 
@@ -419,33 +421,27 @@ def build_llm_client() -> Tuple[LLMClient, str, LLMClient, str]:
 
     if not anthropic_api_key and not openai_api_key:
         raise ReviewError(
-            "No LLM credentials configured. Set ANTHROPIC_API_KEY for native Anthropic support or OPENAI_API_KEY for an OpenAI-compatible endpoint."
-        )
-
-    assistant_model = get_env_or_default("ASSISTANT_REVIEW_MODEL", DEFAULT_ASSISTANT_MODEL)
-    spartan_model = get_env_or_default("SPARTAN_REVIEW_MODEL", DEFAULT_SPARTAN_MODEL)
-
-    anthropic_client = None
-    if anthropic_api_key:
-        anthropic_client = AnthropicClient(
-            anthropic_api_key,
-            get_env_or_default("ANTHROPIC_BASE_URL", DEFAULT_ANTHROPIC_API_BASE_URL),
-        )
-
-    openai_client = None
-    if openai_api_key:
-        openai_client = OpenAICompatibleClient(
-            openai_api_key,
-            get_env_or_default("OPENAI_BASE_URL", DEFAULT_OPENAI_API_BASE_URL),
+            "No LLM credentials configured. Set ANTHROPIC_API_KEY for Anthropic or OPENAI_API_KEY for Gemini/OpenAI-compatible."
         )
 
     if anthropic_api_key and openai_api_key:
-        return anthropic_client, assistant_model, openai_client, spartan_model
+        assistant_model = get_env_or_default("ASSISTANT_REVIEW_MODEL", DEFAULT_ANTHROPIC_ASSISTANT_MODEL)
+        spartan_model = get_env_or_default("SPARTAN_REVIEW_MODEL", DEFAULT_GEMINI_SPARTAN_MODEL)
+        return (
+            AnthropicClient(anthropic_api_key, get_env_or_default("ANTHROPIC_BASE_URL", DEFAULT_ANTHROPIC_API_BASE_URL)),
+            assistant_model,
+            OpenAICompatibleClient(openai_api_key, get_env_or_default("OPENAI_BASE_URL", DEFAULT_OPENAI_API_BASE_URL)),
+            spartan_model,
+        )
 
     if anthropic_api_key:
-        return anthropic_client, assistant_model, anthropic_client, spartan_model
+        model = get_env_or_default("ASSISTANT_REVIEW_MODEL", DEFAULT_ANTHROPIC_ASSISTANT_MODEL)
+        client = AnthropicClient(anthropic_api_key, get_env_or_default("ANTHROPIC_BASE_URL", DEFAULT_ANTHROPIC_API_BASE_URL))
+        return client, model, client, get_env_or_default("SPARTAN_REVIEW_MODEL", DEFAULT_ANTHROPIC_SPARTAN_MODEL)
 
-    return openai_client, assistant_model, openai_client, spartan_model
+    model = get_env_or_default("SPARTAN_REVIEW_MODEL", DEFAULT_GEMINI_SPARTAN_MODEL)
+    client = OpenAICompatibleClient(openai_api_key, get_env_or_default("OPENAI_BASE_URL", DEFAULT_OPENAI_API_BASE_URL))
+    return client, get_env_or_default("ASSISTANT_REVIEW_MODEL", DEFAULT_GEMINI_ASSISTANT_MODEL), client, model
 
 
 def main() -> int:
