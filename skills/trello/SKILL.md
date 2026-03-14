@@ -222,13 +222,31 @@ Unassign a member from a card:
 python3 scripts/card_unassign.py --board "Launch Planning" --list "Doing" --card "Draft landing page copy" --member "@michael"
 ```
 
+Invite a member to a board:
+
+```bash
+python3 scripts/board_invite.py --board "Launch Planning" --member "user@example.com" --role "normal"
+```
+
+Remove a member from a board:
+
+```bash
+python3 scripts/board_remove_member.py --board "Launch Planning" --member "@michael"
+```
+
+Update a member's role on a board:
+
+```bash
+python3 scripts/board_member_role.py --board "Launch Planning" --member "@michael" --role "admin"
+```
+
 ## Capability summary
 
 | Category | Status |
 | --- | --- |
-| Supported now | boards, lists, cards, comments, attachments, labels, due/start dates, archive/unarchive, member assignment |
+| Supported now | boards, lists, cards, comments, attachments, labels, due/start dates, archive/unarchive, member assignment, board member management |
 | Near-term | checklist support, dedicated start-date helpers, richer read-only history/detail scripts |
-| Intentionally unsupported | delete flows, board admin/invites, webhooks/listeners, local sync state, automation |
+| Intentionally unsupported | delete flows (except board members), webhooks/listeners, local sync state, automation |
 
 ## Action script map
 
@@ -257,6 +275,9 @@ python3 scripts/card_unassign.py --board "Launch Planning" --list "Doing" --card
 - `scripts/board_close.py` — close board
 - `scripts/board_reopen.py` — reopen board
 - `scripts/members_list.py` — list members on a board
+- `scripts/board_invite.py` — invite member to board
+- `scripts/board_remove_member.py` — remove member from board
+- `scripts/board_member_role.py` — update member role on board
 - `scripts/card_assign.py` — assign member to card
 - `scripts/card_unassign.py` — unassign member from card
 
@@ -285,6 +306,9 @@ python3 scripts/card_unassign.py --board "Launch Planning" --list "Doing" --card
 - Unarchive `Draft landing page copy`.
 - Close the `Launch Planning` board.
 - List members on the `Launch Planning` board.
+- Invite `user@example.com` to the `Launch Planning` board.
+- Remove `@michael` from the `Launch Planning` board.
+- Make `@michael` an admin on the `Launch Planning` board.
 - Assign `@michael` to `Draft landing page copy` in `Doing` on `Launch Planning`.
 - Unassign `@michael` from `Draft landing page copy`.
 
